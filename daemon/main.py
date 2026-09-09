@@ -3,6 +3,7 @@ import datetime
 import os
 import signal
 import sys
+from zoneinfo import ZoneInfo
 
 import gi
 from setproctitle import setproctitle
@@ -17,7 +18,7 @@ sys.path.insert(0, CALENDAR_DIR)
 
 from dbus import BUS_INTERFACE, BUS_NAME, BUS_PATH
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
-from store import CalendarManager
+from store import CalendarManager, watch_timezone_changes
 
 CALDAV_REFRESH_INTERVAL_SECONDS = 15 * 60
 GOOGLE_REFRESH_INTERVAL_SECONDS = 2 * 60 * 60
@@ -69,6 +70,7 @@ INTERFACE_XML = f"""
 
 class ClockensteinDaemon:
     def __init__(self):
+        self.refresh_timezone()
         self.settings = Gio.Settings.new(SETTINGS_SCHEMA)
         self.verbose = self.settings.get_boolean(VERBOSE_KEY)
         self.settings.connect(f"changed::{VERBOSE_KEY}", self._verbose_changed)
@@ -82,6 +84,17 @@ class ClockensteinDaemon:
         self.reminder_events = []
         self.loop = GLib.MainLoop()
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTERFACE_XML)
+        # Keep the monitor alive; otherwise it may be garbage-collected.
+        self.timezone_monitor = watch_timezone_changes(self._timezone_changed)
+
+    def _timezone_changed(self):
+        self.refresh_timezone()
+        self.last_reminder_check = datetime.datetime.now(self.timezone)
+        self._reload_reminder_events()
+        self._emit_changed()
+
+    def refresh_timezone(self):
+        self.timezone = ZoneInfo(GLib.TimeZone.new_local().get_identifier())
 
     def _verbose_changed(self, settings, _key):
         verbose = settings.get_boolean(VERBOSE_KEY)
@@ -121,7 +134,7 @@ class ClockensteinDaemon:
 
     def _name_acquired(self, _connection, _name):
         self._log(f"Acquired {BUS_NAME}")
-        self.last_reminder_check = datetime.datetime.now().astimezone()
+        self.last_reminder_check = datetime.datetime.now(self.timezone)
         self._reload_reminder_events()
         GLib.timeout_add_seconds(
             REMINDER_CHECK_INTERVAL_SECONDS, self._reminder_timeout
@@ -181,32 +194,32 @@ class ClockensteinDaemon:
                     "Date-range refreshes are only supported for CalDAV",
                 )
                 return
-            date_range = (datetime.datetime.fromtimestamp(since).date(),
-                          datetime.datetime.fromtimestamp(until).date())
+            date_range = (datetime.datetime.fromtimestamp(since, self.timezone).date(),
+                          datetime.datetime.fromtimestamp(until, self.timezone).date())
             self._log(f"RefreshRange({provider}, {date_range[0]}, {date_range[1]})")
             self._request_refresh(refresh_google=False, refresh_caldav=True,
                                   date_range=date_range)
             invocation.return_value(None)
 
     def _events_for_range(self, since, until):
-        start = datetime.datetime.fromtimestamp(since).date()
-        end = datetime.datetime.fromtimestamp(until).date()
-        store = CalendarManager()
+        start = datetime.datetime.fromtimestamp(since, self.timezone).date()
+        end = datetime.datetime.fromtimestamp(until, self.timezone).date()
+        store = CalendarManager(self.timezone)
         return [self._event_tuple(event) for event in store.get_events(start, end)]
 
     @staticmethod
     def _event_tuple(event):
         all_day = bool(event.get("all_day"))
         start_time = event.get("time_start") or datetime.time.min
-        start = datetime.datetime.combine(event["date_start"], start_time).astimezone()
+        start = datetime.datetime.combine(event["date_start"], start_time, self.timezone)
         if all_day:
             end_date = event.get("date_end", event["date_start"]) + datetime.timedelta(days=1)
-            end = datetime.datetime.combine(end_date, datetime.time.min).astimezone()
+            end = datetime.datetime.combine(end_date, datetime.time.min, self.timezone)
         else:
             end_time = event.get("time_end") or start_time
             end = datetime.datetime.combine(
-                event.get("date_end", event["date_start"]), end_time
-            ).astimezone()
+                event.get("date_end", event["date_start"]), end_time, self.timezone
+            )
         uid = ":".join((event.get("provider", "local"),
                         event.get("account_id", "local"),
                         event.get("calendar_id", ""), event["uid"]))
@@ -223,14 +236,14 @@ class ClockensteinDaemon:
         return GLib.SOURCE_CONTINUE
 
     def _reminder_timeout(self):
-        now = datetime.datetime.now().astimezone()
+        now = datetime.datetime.now(self.timezone)
         since = self.last_reminder_check or now
         self.last_reminder_check = now
         try:
             minutes = self.settings.get_uint(NOTIFICATION_MINUTES_KEY)
             events = [event for event in self.reminder_events
                       if event.get("reminders", True)]
-            for event in _due_notifications(events, since, now, minutes):
+            for event in _due_notifications(events, since, now, minutes, self.timezone):
                 self._emit_reminder(event)
         except Exception as exc:
             self._log(f"Could not check reminders: {exc}")
@@ -238,7 +251,7 @@ class ClockensteinDaemon:
 
     def _reload_reminder_events(self):
         try:
-            self.reminder_events = CalendarManager().get_events(include_hidden=True)
+            self.reminder_events = CalendarManager(self.timezone).get_events(include_hidden=True)
         except Exception as exc:
             self._log(f"Could not reload reminders: {exc}")
 
@@ -254,7 +267,7 @@ class ClockensteinDaemon:
              event.get("description", ""),
              event.get("calendar_name", ""),
              event.get("calendar_color", "#2aa198"),
-             int(_event_start(event).timestamp()), bool(event.get("all_day"))),
+             int(_event_start(event, self.timezone).timestamp()), bool(event.get("all_day"))),
         )
         self._log(f"Emitting Reminder for {uid}")
         self.connection.emit_signal(
@@ -277,7 +290,7 @@ class ClockensteinDaemon:
     @run_async
     def _refresh_remote(self, refresh_google=False, refresh_caldav=True,
                         target=None, date_range=None):
-        store = CalendarManager()
+        store = CalendarManager(self.timezone)
         if not store.has_remote_accounts:
             self._log("No remote accounts to refresh")
             self._refresh_finished()
@@ -350,24 +363,23 @@ class ClockensteinDaemon:
             print(f"clockenstein-daemon: {message}", flush=True)
 
 
-def _event_start(event):
-    local_tz = datetime.datetime.now().astimezone().tzinfo
+def _event_start(event, timezone):
     return datetime.datetime.combine(
-        event["date_start"], event.get("time_start") or datetime.time.min, local_tz
+        event["date_start"], event.get("time_start") or datetime.time.min, timezone
     )
 
 
-def _due_notifications(events, since, until, minutes):
+def _due_notifications(events, since, until, minutes, timezone):
     """Return events whose universal notification became due in the interval."""
     if until < since:
         return []
     due = []
     for event in events:
-        start = _event_start(event)
+        start = _event_start(event, timezone)
         trigger = start - datetime.timedelta(minutes=minutes)
         if since < trigger <= until:
             due.append(event)
-    return sorted(due, key=_event_start)
+    return sorted(due, key=lambda event: _event_start(event, timezone))
 
 
 if __name__ == "__main__":

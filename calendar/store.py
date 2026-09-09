@@ -21,10 +21,32 @@ def _data_dir() -> Path:
 DEFAULT_COLOR = "#2aa198"
 
 
+def watch_timezone_changes(callback):
+    """Refresh the cached zone when the system updates /etc/localtime."""
+    try:
+        from gi.repository import Gio, GLib
+    except ImportError:
+        return None
+    try:
+        monitor = Gio.File.new_for_path("/etc").monitor_directory(
+            Gio.FileMonitorFlags.NONE, None
+        )
+    except (AttributeError, GLib.Error):
+        return None
+
+    def changed(_monitor, file, other_file, _event_type):
+        if any(item and item.get_basename() == "localtime" for item in (file, other_file)):
+            callback()
+
+    monitor.connect("changed", changed)
+    return monitor
+
+
 class LocalStore:
     """One ICS file per local calendar, with a small JSON calendar registry."""
 
-    def __init__(self, data_dir: Optional[Path] = None):
+    def __init__(self, timezone: datetime.tzinfo, data_dir: Optional[Path] = None):
+        self.timezone = timezone
         self.data_dir = Path(data_dir) if data_dir else _data_dir()
         self.calendars_dir = self.data_dir / "calendars"
         self.registry_file = self.data_dir / "calendars.json"
@@ -123,7 +145,7 @@ class LocalStore:
             for component in self._load_calendar(info["id"]).walk():
                 if component.name != "VEVENT":
                     continue
-                ev = _component_to_dict(component)
+                ev = _component_to_dict(component, self.timezone)
                 if start and ev["date_end"] < start:
                     continue
                 if end and ev["date_start"] > end:
@@ -143,7 +165,7 @@ class LocalStore:
         ev.add("uid", uid)
         ev.add("dtstamp", datetime.datetime.now(datetime.timezone.utc))
         ev.add("created", datetime.datetime.now(datetime.timezone.utc))
-        _apply_data(ev, data)
+        _apply_data(ev, data, self.timezone)
         cal.add_component(ev)
         self._save_calendar(calendar_id, cal)
         return next(e for e in self.get_events() if e["uid"] == uid and e["calendar_id"] == calendar_id)
@@ -160,7 +182,7 @@ class LocalStore:
             if key.upper() in component:
                 ev.add(key, component[key.upper()])
         ev.add("last-modified", datetime.datetime.now(datetime.timezone.utc))
-        _apply_data(ev, data)
+        _apply_data(ev, data, self.timezone)
         source.subcomponents = [c for c in source.subcomponents
                                 if not (c.name == "VEVENT" and str(c.get("uid", "")) == uid)]
         if calendar_id == source_id:
@@ -225,12 +247,13 @@ class LocalStore:
 class CalendarManager:
     """Aggregate local calendars and optional online accounts for the UI."""
 
-    def __init__(self, data_dir: Optional[Path] = None):
-        self.local = LocalStore(data_dir)
+    def __init__(self, timezone: datetime.tzinfo, data_dir: Optional[Path] = None):
+        self.timezone = timezone
+        self.local = LocalStore(timezone, data_dir)
         from backends.google import GoogleBackend
         from backends.caldav import CalDAVBackend
-        self.google = GoogleBackend(self.local.data_dir / "google")
-        self.caldav = CalDAVBackend(self.local.data_dir / "caldav")
+        self.google = GoogleBackend(self.local.data_dir / "google", timezone)
+        self.caldav = CalDAVBackend(self.local.data_dir / "caldav", timezone)
 
     def list_calendars(self):
         return (self.local.list_calendars() + self.google.list_calendars()
@@ -289,7 +312,7 @@ def _event_sort_key(e):
     return e["date_start"], e.get("time_start") or datetime.time.min
 
 
-def _apply_data(ev: Event, data: dict):
+def _apply_data(ev: Event, data: dict, timezone: datetime.tzinfo):
     ev.add("summary", data.get("summary", ""))
     if data.get("location"):
         ev.add("location", data["location"])
@@ -301,12 +324,13 @@ def _apply_data(ev: Event, data: dict):
         ev.add("dtstart", date_start)
         ev.add("dtend", date_end + datetime.timedelta(days=1))
     else:
-        tz = datetime.datetime.now().astimezone().tzinfo
-        ev.add("dtstart", datetime.datetime.combine(date_start, data.get("time_start") or datetime.time(9)).replace(tzinfo=tz))
-        ev.add("dtend", datetime.datetime.combine(date_end, data.get("time_end") or datetime.time(10)).replace(tzinfo=tz))
+        ev.add("dtstart", datetime.datetime.combine(
+            date_start, data.get("time_start") or datetime.time(9), timezone))
+        ev.add("dtend", datetime.datetime.combine(
+            date_end, data.get("time_end") or datetime.time(10), timezone))
 
 
-def _component_to_dict(component) -> dict:
+def _component_to_dict(component, timezone: datetime.tzinfo) -> dict:
     dtstart = component.get("dtstart").dt
     dtend = component.get("dtend").dt if component.get("dtend") else dtstart
     all_day = isinstance(dtstart, datetime.date) and not isinstance(dtstart, datetime.datetime)
@@ -314,6 +338,10 @@ def _component_to_dict(component) -> dict:
         date_start, date_end = dtstart, dtend - datetime.timedelta(days=1)
         time_start = time_end = None
     else:
+        if dtstart.tzinfo is not None:
+            dtstart = dtstart.astimezone(timezone)
+        if dtend.tzinfo is not None:
+            dtend = dtend.astimezone(timezone)
         date_start, date_end = dtstart.date(), dtend.date()
         time_start, time_end = dtstart.time().replace(tzinfo=None), dtend.time().replace(tzinfo=None)
     return {"uid": str(component.get("uid", "")), "summary": str(component.get("summary", "")),

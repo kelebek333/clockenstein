@@ -11,7 +11,6 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from store import CalendarManager
 from main_window import MainWindow
 
 
@@ -31,7 +30,7 @@ def _activate(application):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
-    window = MainWindow(CalendarManager())
+    window = MainWindow()
     application.add_window(window)
     window.show_all()
 

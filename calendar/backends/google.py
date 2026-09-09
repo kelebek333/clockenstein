@@ -5,6 +5,7 @@ import json
 import httplib2
 import zlib
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from google.oauth2.credentials import Credentials
 from google_auth_httplib2 import AuthorizedHttp
@@ -35,7 +36,8 @@ class GoogleUnavailable(RuntimeError):
 
 
 class GoogleBackend:
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path, timezone: datetime.tzinfo):
+        self.timezone = timezone
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.accounts_file = self.data_dir / "accounts.json"
@@ -213,7 +215,7 @@ class GoogleBackend:
                 cal = calendars.get((account["id"], raw.get("_calendar_id")))
                 if not cal or raw.get("status") == "cancelled":
                     continue
-                event = google_event_to_dict(raw, cal, account, online)
+                event = google_event_to_dict(raw, cal, account, online, self.timezone)
                 if start and event["date_end"] < start:
                     continue
                 if end and event["date_start"] > end:
@@ -264,7 +266,7 @@ class GoogleBackend:
                 continue
             try:
                 retained = [e for e in account.get("events", [])
-                            if not _raw_overlaps(e, start, end)]
+                            if not _raw_overlaps(e, start, end, self.timezone)]
                 fetched = []
                 for cal in account["calendars"]:
                     if target_calendar_id and cal["id"] != target_calendar_id:
@@ -285,7 +287,7 @@ class GoogleBackend:
                     else:
                         cal_start, cal_end = start, end
                     events, paginated = self._fetch_events(
-                        service, cal["id"], cal_start, cal_end, stats,
+                        service, cal["id"], cal_start, cal_end, self.timezone, stats,
                         first_page_only=bool(limited_range)
                     )
                     if paginated and sync_range == "normal" and limited_range:
@@ -293,7 +295,7 @@ class GoogleBackend:
                         cal_start, cal_end = limited_range
                         stats["limited_calendars"] += 1
                         events, paginated = self._fetch_events(
-                            service, cal["id"], cal_start, cal_end, stats,
+                            service, cal["id"], cal_start, cal_end, self.timezone, stats,
                             first_page_only=bool(restricted_range)
                         )
                     if paginated and sync_range == "limited" and restricted_range:
@@ -301,7 +303,7 @@ class GoogleBackend:
                         cal_start, cal_end = restricted_range
                         stats["restricted_calendars"] += 1
                         events, paginated = self._fetch_events(
-                            service, cal["id"], cal_start, cal_end, stats,
+                            service, cal["id"], cal_start, cal_end, self.timezone, stats,
                             first_page_only=True
                         )
                     if paginated and sync_range == "restricted":
@@ -320,7 +322,7 @@ class GoogleBackend:
                 if target_calendar_id:
                     retained = [event for event in account.get("events", [])
                                 if event.get("_calendar_id") != target_calendar_id
-                                or not _raw_overlaps(event, start, end)]
+                                or not _raw_overlaps(event, start, end, self.timezone)]
                 account["events"] = retained + fetched
                 creds = self._credentials.get(account_id)
                 if creds is not None and account.get("token"):
@@ -343,7 +345,7 @@ class GoogleBackend:
     def create_event(self, data):
         self._validate_event_range(data)
         service = self._require_service(data["account_id"])
-        body = event_dict_to_google(data)
+        body = event_dict_to_google(data, self.timezone)
         raw = service.events().insert(calendarId=data["calendar_id"], body=body).execute()
         raw["_calendar_id"] = data["calendar_id"]
         self._upsert_cached(data["account_id"], raw)
@@ -357,7 +359,7 @@ class GoogleBackend:
             service.events().move(calendarId=source_id, eventId=uid,
                                   destination=data["calendar_id"]).execute()
         raw = service.events().patch(calendarId=data["calendar_id"], eventId=uid,
-                                     body=event_dict_to_google(data)).execute()
+                                     body=event_dict_to_google(data, self.timezone)).execute()
         raw["_calendar_id"] = data["calendar_id"]
         if source_id != data["calendar_id"]:
             account = next(a for a in self.accounts if a["id"] == data["account_id"])
@@ -507,15 +509,16 @@ class GoogleBackend:
         return build("calendar", "v3", http=http, cache_discovery=False)
 
     @staticmethod
-    def _fetch_events(service, calendar_id, start, end, stats=None,
+    def _fetch_events(service, calendar_id, start, end, timezone, stats=None,
                       first_page_only=False):
-        local_tz = datetime.datetime.now().astimezone().tzinfo
+        local_tz = timezone
         time_min = datetime.datetime.combine(start, datetime.time.min, local_tz).isoformat()
         time_max = datetime.datetime.combine(end + datetime.timedelta(days=1), datetime.time.min, local_tz).isoformat()
         items, token = [], None
         while True:
             response = service.events().list(calendarId=calendar_id, timeMin=time_min, timeMax=time_max,
                                              singleEvents=True, showDeleted=True,
+                                             timeZone=getattr(local_tz, "key", None),
                                              orderBy="startTime",
                                              maxResults=EVENTS_PAGE_SIZE,
                                              pageToken=token).execute()
@@ -591,7 +594,7 @@ class GoogleBackend:
         return json.dumps(payload)
 
 
-def google_event_to_dict(raw, calendar, account, online):
+def google_event_to_dict(raw, calendar, account, online, timezone):
     start, end = raw.get("start", {}), raw.get("end", {})
     all_day = "date" in start
     if all_day:
@@ -599,8 +602,10 @@ def google_event_to_dict(raw, calendar, account, online):
         date_end = datetime.date.fromisoformat(end.get("date", start["date"])) - datetime.timedelta(days=1)
         time_start = time_end = None
     else:
-        start_dt = _parse_datetime(start.get("dateTime"))
-        end_dt = _parse_datetime(end.get("dateTime", start.get("dateTime")))
+        start_dt = _parse_datetime(start.get("dateTime"), start.get("timeZone"))
+        end_dt = _parse_datetime(end.get("dateTime", start.get("dateTime")), end.get("timeZone"))
+        start_dt = start_dt.astimezone(timezone)
+        end_dt = end_dt.astimezone(timezone)
         date_start, date_end = start_dt.date(), end_dt.date()
         time_start, time_end = start_dt.time().replace(tzinfo=None), end_dt.time().replace(tzinfo=None)
     writable = calendar.get("access_role") in ("writer", "owner")
@@ -630,43 +635,56 @@ def google_event_fits_sync_range(calendar, date_start, date_end, today=None):
     return date_start >= synced_start and date_end <= synced_end
 
 
-def event_dict_to_google(data):
+def event_dict_to_google(data, timezone):
     body = {"summary": data.get("summary", ""), "location": data.get("location", ""),
             "description": data.get("description", "")}
     if data.get("all_day", True):
         body["start"] = {"date": data["date_start"].isoformat()}
         body["end"] = {"date": (data.get("date_end", data["date_start"]) + datetime.timedelta(days=1)).isoformat()}
     else:
-        tz = datetime.datetime.now().astimezone().tzinfo
-        start = datetime.datetime.combine(data["date_start"], data["time_start"], tz)
-        end = datetime.datetime.combine(data.get("date_end", data["date_start"]), data["time_end"], tz)
+        start = datetime.datetime.combine(data["date_start"], data["time_start"], timezone)
+        end = datetime.datetime.combine(data.get("date_end", data["date_start"]), data["time_end"], timezone)
         body["start"] = {"dateTime": start.isoformat()}
         body["end"] = {"dateTime": end.isoformat()}
+        timezone_name = getattr(timezone, "key", None)
+        if timezone_name:
+            body["start"]["timeZone"] = timezone_name
+            body["end"]["timeZone"] = timezone_name
     return body
 
 
-def _parse_datetime(value):
-    return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+def _parse_datetime(value, time_zone=None):
+    parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None and time_zone:
+        try:
+            return parsed.replace(tzinfo=ZoneInfo(time_zone))
+        except ZoneInfoNotFoundError:
+            pass
+    return parsed
 
 
-def _raw_start_date(raw):
+def _raw_start_date(raw, timezone):
     start = raw.get("start", {})
     if "date" in start:
         return datetime.date.fromisoformat(start["date"])
     if "dateTime" in start:
-        return _parse_datetime(start["dateTime"]).date()
+        return _parse_datetime(start["dateTime"], start.get("timeZone")).astimezone(
+            timezone
+        ).date()
     return None
 
 
-def _raw_end_date(raw):
+def _raw_end_date(raw, timezone):
     end = raw.get("end", {})
     if "date" in end:
         return datetime.date.fromisoformat(end["date"]) - datetime.timedelta(days=1)
     if "dateTime" in end:
-        return _parse_datetime(end["dateTime"]).date()
-    return _raw_start_date(raw)
+        return _parse_datetime(end["dateTime"], end.get("timeZone")).astimezone(
+            timezone
+        ).date()
+    return _raw_start_date(raw, timezone)
 
 
-def _raw_overlaps(raw, start, end):
-    raw_start, raw_end = _raw_start_date(raw), _raw_end_date(raw)
+def _raw_overlaps(raw, start, end, timezone):
+    raw_start, raw_end = _raw_start_date(raw, timezone), _raw_end_date(raw, timezone)
     return raw_start is not None and raw_end is not None and raw_end >= start and raw_start <= end

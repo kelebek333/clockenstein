@@ -24,9 +24,10 @@ EVENT_COLUMN_GAP = 4
 
 
 class DayView(Gtk.Box):
-    def __init__(self, today: datetime.date, on_event: Callable, on_new_event: Callable):
+    def __init__(self, today: datetime.date, timezone, on_event: Callable, on_new_event: Callable):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.today    = today
+        self.timezone = timezone
         self.current_date = today
         self.on_event = on_event
         self.on_new_event = on_new_event
@@ -182,7 +183,7 @@ class DayView(Gtk.Box):
 
         self.show_all()
         scroll_minute = _initial_scroll_minute(
-            day_events, (current_date,), current_date == datetime.date.today()
+            day_events, (current_date,), current_date == self.today
         )
         GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
                       _minute_to_y(scroll_minute))
@@ -199,7 +200,7 @@ class DayView(Gtk.Box):
         cr.save()
         cr.translate(0, -ALL_DAY_HEIGHT)
         _draw_day_grid(widget, cr)
-        if self.current_date == datetime.date.today():
+        if self.current_date == self.today:
             _draw_now_line(widget, cr)
         cr.restore()
         return False
@@ -213,15 +214,23 @@ class DayView(Gtk.Box):
         return False
 
     def _update_now_line(self):
-        visible = self.current_date == datetime.date.today()
+        visible = self.current_date == self.today
         self.now_label.set_visible(visible)
         if visible:
-            now = datetime.datetime.now()
+            now = datetime.datetime.now(self.timezone)
             minutes = now.hour * 60 + now.minute
             self.now_label.set_text(now.strftime("%H:%M"))
             self.gutter.move(self.now_label, 0, _minute_to_y(minutes) - 10)
         self.background.queue_draw()
         return True
+
+    def set_today(self, today: datetime.date):
+        self.today = today
+        self._update_now_line()
+
+    def set_timezone(self, timezone, today):
+        self.timezone = timezone
+        self.set_today(today)
 
     def _position_event_widgets(self, _layer, allocation):
         for item in self._positioned_events:

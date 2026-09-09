@@ -87,6 +87,11 @@ class MonthView(Gtk.Box):
         self._render_events(grid_start, events)
         self.show_all()
 
+    def set_today(self, today: datetime.date):
+        self.today = today
+        for cell in self.cells:
+            cell.today = today
+
     def _render_events(self, grid_start, events):
         for widget in self.event_widgets:
             self.grid.remove(widget)

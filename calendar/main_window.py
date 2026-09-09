@@ -1,4 +1,5 @@
 import datetime
+from zoneinfo import ZoneInfo
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -12,7 +13,7 @@ from event_dialog import EventDialog
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
 from dbus import BUS_INTERFACE, BUS_NAME, BUS_PATH, notify_changed
 from formatting import capitalize_first, format_time
-from store import CalendarManager
+from store import CalendarManager, watch_timezone_changes
 from views.colors import apply_tinted_event_color
 from views.month_view import MonthView
 from views.week_view import WeekView
@@ -21,9 +22,10 @@ from widgets.mini_calendar import MiniCalendar
 
 
 class MainWindow(Gtk.Window):
-    def __init__(self, store: CalendarManager):
+    def __init__(self):
         super().__init__(title=_("Calendar"))
-        self.store = store
+        self.refresh_timezone()
+        self.store = CalendarManager(self.timezone)
         self.settings = Gio.Settings.new("org.x.clockenstein.calendar")
         width = self.settings.get_int("window-width")
         height = self.settings.get_int("window-height")
@@ -42,6 +44,8 @@ class MainWindow(Gtk.Window):
         self._active_view = view_names.get(saved_view, "Month")
         self._refreshing = False
         self._build_ui()
+        # Keep the monitor alive; otherwise it may be garbage-collected.
+        self.timezone_monitor = watch_timezone_changes(self.timezone_changed)
         self._subscribe_to_daemon()
         geometry = Gdk.Geometry()
         geometry.min_width = 640
@@ -68,10 +72,28 @@ class MainWindow(Gtk.Window):
 
     def _daemon_changed(self, _connection, _sender, _path, _interface,
                         _signal, _parameters):
-        self.store = CalendarManager()
+        self.store = CalendarManager(self.timezone)
         self._refresh(refresh_remote=False)
         if self._calendar_dialog_box is not None:
             self._fill_calendar_box(self._calendar_dialog_box)
+
+    def timezone_changed(self):
+        self.refresh_timezone()
+        was_showing_today = self.current_date == self.today
+        self.today = datetime.datetime.now(self.timezone).date()
+        self.month_view.set_today(self.today)
+        self.week_view.set_timezone(self.timezone, self.today)
+        self.day_view.set_timezone(self.timezone, self.today)
+        if was_showing_today:
+            self.current_date = self.today
+            self._month_selected_date = self.today
+            self._week_selected_date = self.today
+            self._sync_mini_cal()
+        self.store = CalendarManager(self.timezone)
+        self._refresh(refresh_remote=False)
+
+    def refresh_timezone(self):
+        self.timezone = ZoneInfo(GLib.TimeZone.new_local().get_identifier())
 
     def _build_ui(self):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -158,9 +180,9 @@ class MainWindow(Gtk.Window):
         calendar_area.pack_start(self.stack, True, True, 0)
         self.month_view = MonthView(self.today, self._on_event_activated, self._new_event,
                                     self._scroll_month, self._select_month_date)
-        self.week_view = WeekView(self.today, self._on_event_activated, self._new_event,
+        self.week_view = WeekView(self.today, self.timezone, self._on_event_activated, self._new_event,
                                   self._select_week_date)
-        self.day_view = DayView(self.today, self._on_event_activated, self._new_event)
+        self.day_view = DayView(self.today, self.timezone, self._on_event_activated, self._new_event)
         for name, view in (("Month", self.month_view), ("Week", self.week_view),
                            ("Day", self.day_view)):
             self.stack.add_named(view, name)
@@ -1092,11 +1114,11 @@ class MainWindow(Gtk.Window):
                     ))
             else:
                 since = int(datetime.datetime.combine(
-                    start, datetime.time.min
-                ).astimezone().timestamp())
+                    start, datetime.time.min, self.timezone
+                ).timestamp())
                 until = int(datetime.datetime.combine(
-                    end, datetime.time.max
-                ).astimezone().timestamp())
+                    end, datetime.time.max, self.timezone
+                ).timestamp())
                 self._call_daemon("RefreshRange", GLib.Variant(
                     "(sxx)", ("caldav", since, until)
                 ))
@@ -1116,7 +1138,7 @@ class MainWindow(Gtk.Window):
     def _sync_request_accepted(self):
         self._set_refreshing(False)
         self._set_status(_("Synchronization requested"))
-        self.store = CalendarManager()
+        self.store = CalendarManager(self.timezone)
         self._update_views()
         self._populate_calendar_list()
 

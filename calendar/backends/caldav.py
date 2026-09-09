@@ -20,7 +20,8 @@ class CalDAVUnavailable(RuntimeError):
 class CalDAVBackend:
     SECRET_SCHEMA = "org.x.clockenstein.CalDAV"
 
-    def __init__(self, data_dir: Path):
+    def __init__(self, data_dir: Path, timezone: datetime.tzinfo):
+        self.timezone = timezone
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.accounts_file = self.data_dir / "accounts.json"
@@ -143,7 +144,7 @@ class CalDAVBackend:
                 try:
                     component = next(c for c in Calendar.from_ical(raw["ical"]).walk()
                                      if c.name == "VEVENT")
-                    event = _component_to_dict(component)
+                    event = _component_to_dict(component, self.timezone)
                 except Exception:
                     continue
                 if start and event["date_end"] < start or end and event["date_start"] > end:
@@ -174,7 +175,8 @@ class CalDAVBackend:
                 self._clients[account_id] = client
                 self._calendars[account_id] = {str(c.url): c for c in remote}
                 account["calendars"] = self._merge_calendars(account.get("calendars", []), remote)
-                retained = [e for e in account.get("events", []) if not _overlaps(e, start, end)]
+                retained = [e for e in account.get("events", [])
+                            if not _overlaps(e, start, end, self.timezone)]
                 fetched = []
                 for info in account["calendars"]:
                     if target_calendar_id and info["id"] != target_calendar_id:
@@ -184,9 +186,9 @@ class CalDAVBackend:
                     calendar = self._calendars[account_id].get(info["id"])
                     if calendar is None:
                         continue
-                    range_start = datetime.datetime.combine(start, datetime.time.min)
+                    range_start = datetime.datetime.combine(start, datetime.time.min, self.timezone)
                     range_end = datetime.datetime.combine(
-                        end + datetime.timedelta(days=1), datetime.time.min)
+                        end + datetime.timedelta(days=1), datetime.time.min, self.timezone)
                     try:
                         remote_events = calendar.date_search(range_start, range_end, expand=True)
                     except Exception:
@@ -203,7 +205,7 @@ class CalDAVBackend:
                 if target_calendar_id:
                     retained = [event for event in account.get("events", [])
                                 if event.get("calendar_id") != target_calendar_id
-                                or not _overlaps(event, start, end)]
+                                or not _overlaps(event, start, end, self.timezone)]
                 account["events"] = retained + fetched
                 self._errors.pop(account_id, None)
             except Exception as exc:
@@ -220,7 +222,7 @@ class CalDAVBackend:
 
     def create_event(self, data):
         calendar = self._require_calendar(data["account_id"], data["calendar_id"])
-        remote = calendar.save_event(_event_ical(data))
+        remote = calendar.save_event(_event_ical(data, self.timezone))
         self._cache_remote(data["account_id"], data["calendar_id"], remote)
         return data
 
@@ -233,7 +235,7 @@ class CalDAVBackend:
             raise CalDAVUnavailable(_("The event has no CalDAV resource URL"))
         parent = self._require_calendar(data["account_id"], data["calendar_id"])
         if source_id != data["calendar_id"]:
-            remote = parent.save_event(_event_ical(data, uid))
+            remote = parent.save_event(_event_ical(data, self.timezone, uid))
             source = self._require_calendar(data["account_id"], source_id)
             caldav.Event(client=self._clients[data["account_id"]], parent=source,
                          url=cached["url"]).delete()
@@ -241,7 +243,7 @@ class CalDAVBackend:
                                cached["url"])
             return data
         remote = caldav.Event(client=self._clients[data["account_id"]], parent=parent,
-                             url=cached["url"], data=_event_ical(data, uid))
+                             url=cached["url"], data=_event_ical(data, self.timezone, uid))
         remote.save()
         self._cache_remote(data["account_id"], data["calendar_id"], remote, cached["url"])
         return data
@@ -377,7 +379,7 @@ class CalDAVBackend:
             return default
 
 
-def _event_ical(data, uid=None):
+def _event_ical(data, timezone: datetime.tzinfo, uid=None):
     calendar = Calendar()
     calendar.add("prodid", "-//Clockenstein//EN")
     calendar.add("version", "2.0")
@@ -385,7 +387,7 @@ def _event_ical(data, uid=None):
     event.add("uid", uid or data.get("uid") or hashlib.sha256(
         f"{datetime.datetime.now().isoformat()}:{data.get('summary', '')}".encode()).hexdigest())
     event.add("dtstamp", datetime.datetime.now(datetime.timezone.utc))
-    _apply_data(event, data)
+    _apply_data(event, data, timezone)
     calendar.add_component(event)
     return calendar.to_ical().decode("utf-8")
 
@@ -409,10 +411,10 @@ def _cached_uid(raw):
         return ""
 
 
-def _overlaps(raw, start, end):
+def _overlaps(raw, start, end, timezone):
     try:
         event = _component_to_dict(next(c for c in Calendar.from_ical(raw["ical"]).walk()
-                                        if c.name == "VEVENT"))
+                                        if c.name == "VEVENT"), timezone)
         return event["date_end"] >= start and event["date_start"] <= end
     except Exception:
         return False

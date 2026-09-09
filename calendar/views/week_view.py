@@ -23,10 +23,11 @@ END_HOUR    = 24
 
 
 class WeekView(Gtk.Box):
-    def __init__(self, today: datetime.date, on_event: Callable, on_new_event: Callable,
+    def __init__(self, today: datetime.date, timezone, on_event: Callable, on_new_event: Callable,
                  on_select=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.today    = today
+        self.timezone = timezone
         self.on_event = on_event
         self.on_new_event = on_new_event
         self.on_select = on_select
@@ -194,8 +195,16 @@ class WeekView(Gtk.Box):
                       _minute_to_y(scroll_minute))
         self._update_now_line()
 
+    def set_today(self, today: datetime.date):
+        self.today = today
+        self._update_now_line()
+
+    def set_timezone(self, timezone, today):
+        self.timezone = timezone
+        self.set_today(today)
+
     def _update_now_line(self):
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(self.timezone)
         minutes = now.hour * 60 + now.minute
         self.now_label.set_visible(self._shows_today)
         self.right_now_label.set_visible(self._shows_today)

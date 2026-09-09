@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 from pathlib import Path
 import sys
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "calendar"))
 
@@ -13,10 +14,13 @@ from backends.google import (EVENTS_PAGE_SIZE, GoogleBackend, SCOPES,
 from store import LocalStore
 
 
+UTC = ZoneInfo("UTC")
+
+
 class LocalStoreTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.store = LocalStore(Path(self.temp.name))
+        self.store = LocalStore(UTC, Path(self.temp.name))
 
     def tearDown(self):
         self.temp.cleanup()
@@ -33,7 +37,7 @@ class LocalStoreTests(unittest.TestCase):
         work = self.store.create_calendar("Work")
         self.assertTrue(work["reminders"])
         self.store.set_reminders(work["id"], False)
-        reopened = LocalStore(Path(self.temp.name))
+        reopened = LocalStore(UTC, Path(self.temp.name))
         muted = next(c for c in reopened.list_calendars() if c["id"] == work["id"])
         self.assertFalse(muted["reminders"])
 
@@ -86,14 +90,14 @@ class LocalStoreTests(unittest.TestCase):
         """Calendar visibility survives reloading the store from disk."""
         personal = self.store.list_calendars()[0]
         self.store.set_visible(personal["id"], False)
-        reopened = LocalStore(Path(self.temp.name))
+        reopened = LocalStore(UTC, Path(self.temp.name))
         self.assertFalse(reopened.list_calendars()[0]["visible"])
 
     def test_local_calendar_name_and_color_can_be_changed(self):
         """Local calendar metadata updates are persisted and returned."""
         personal = self.store.list_calendars()[0]
         self.store.update_calendar(personal["id"], "Home", "#abcdef")
-        reopened = LocalStore(Path(self.temp.name))
+        reopened = LocalStore(UTC, Path(self.temp.name))
         updated = reopened.list_calendars()[0]
         self.assertEqual(updated["name"], "Home")
         self.assertEqual(updated["color"], "#abcdef")
@@ -125,7 +129,7 @@ class LocalStoreTests(unittest.TestCase):
         legacy_root.mkdir()
         original = self.store._new_calendar().to_ical()
         (legacy_root / "calendar.ics").write_bytes(original)
-        migrated = LocalStore(legacy_root)
+        migrated = LocalStore(UTC, legacy_root)
         self.assertEqual((legacy_root / "calendar.ics").read_bytes(), original)
         self.assertTrue((legacy_root / "calendars" / "personal.ics").exists())
         self.assertEqual(migrated.list_calendars()[0]["name"], "Personal")
@@ -156,6 +160,7 @@ class GoogleMappingTests(unittest.TestCase):
                 return Events()
 
         backend = object.__new__(GoogleBackend)
+        backend.timezone = UTC
         backend.accounts = [{
             "id": "account",
             "calendars": [{"id": "source", "sync_range": "normal"},
@@ -214,7 +219,7 @@ class GoogleMappingTests(unittest.TestCase):
         stats = {"event_list_requests": 0, "events": 0}
         events, paginated = GoogleBackend._fetch_events(
             Service(), "calendar-id", datetime.date(2026, 1, 1),
-            datetime.date(2026, 12, 31), stats
+            datetime.date(2026, 12, 31), UTC, stats
         )
         self.assertFalse(paginated)
         self.assertEqual([event["id"] for event in events], ["first", "second"])
@@ -259,6 +264,7 @@ class GoogleMappingTests(unittest.TestCase):
                 return Events()
 
         backend = object.__new__(GoogleBackend)
+        backend.timezone = UTC
         backend.accounts = [{
             "id": "account", "calendars": [{
                 "id": "dense", "name": "Dense", "visible": True,
@@ -317,6 +323,7 @@ class GoogleMappingTests(unittest.TestCase):
                 return Events()
 
         backend = object.__new__(GoogleBackend)
+        backend.timezone = UTC
         backend.accounts = [{
             "id": "account", "calendars": [{
                 "id": "dense", "name": "Dense", "visible": True,
@@ -381,7 +388,7 @@ class GoogleMappingTests(unittest.TestCase):
         calendars = [{"id": "me@example.com", "summary": "Personal",
                       "primary": True, "accessRole": "owner"}]
         with tempfile.TemporaryDirectory() as directory:
-            backend = GoogleBackend(Path(directory))
+            backend = GoogleBackend(Path(directory), UTC)
             with patch.object(backend, "_find_goa_account", return_value=FakeObject()), \
                     patch.object(backend, "_build_goa_service", return_value=object()), \
                     patch.object(backend, "_fetch_calendars", return_value=calendars):
@@ -422,21 +429,21 @@ class GoogleMappingTests(unittest.TestCase):
         """A one-day all-day event uses Google's exclusive next-day end date."""
         body = event_dict_to_google({"summary": "Day off", "all_day": True,
                                      "date_start": datetime.date(2026, 8, 22),
-                                     "date_end": datetime.date(2026, 8, 22)})
+                                     "date_end": datetime.date(2026, 8, 22)}, UTC)
         self.assertEqual(body["end"]["date"], "2026-08-23")
 
     def test_multi_day_all_day_end_is_exclusive(self):
         """A multiday all-day event advances its inclusive end for Google."""
         body = event_dict_to_google({"summary": "Trip", "all_day": True,
                                      "date_start": datetime.date(2026, 8, 22),
-                                     "date_end": datetime.date(2026, 8, 25)})
+                                     "date_end": datetime.date(2026, 8, 25)}, UTC)
         self.assertEqual(body["end"]["date"], "2026-08-26")
 
     def test_google_event_writes_do_not_include_reminders(self):
         """Clockenstein leaves Google reminder behavior to Google."""
         body = event_dict_to_google({"summary": "Quiet", "all_day": True,
                                      "date_start": datetime.date(2027, 8, 22),
-                                     "date_end": datetime.date(2027, 8, 22)})
+                                     "date_end": datetime.date(2027, 8, 22)}, UTC)
         self.assertNotIn("reminders", body)
 
     def test_google_event_reads_ignore_remote_reminders(self):
@@ -447,8 +454,40 @@ class GoogleMappingTests(unittest.TestCase):
                "reminders": {"useDefault": True}}
         calendar = {"id": "primary", "name": "Personal", "color": "#123456",
                     "access_role": "owner"}
-        event = google_event_to_dict(raw, calendar, {"id": "me.test"}, True)
+        event = google_event_to_dict(raw, calendar, {"id": "me.test"}, True, UTC)
         self.assertNotIn("notification_minutes", event)
+
+    def test_google_timed_event_is_converted_to_the_computer_timezone(self):
+        raw = {"id": "g1", "summary": "Remote",
+               "start": {"dateTime": "2026-09-09T16:45:00Z"},
+               "end": {"dateTime": "2026-09-09T17:45:00Z"}}
+        calendar = {"id": "primary", "name": "Personal", "color": "#123456",
+                    "access_role": "owner"}
+        event = google_event_to_dict(
+            raw, calendar, {"id": "me.test"}, True, ZoneInfo("Europe/Dublin")
+        )
+        self.assertEqual(event["time_start"], datetime.time(17, 45))
+        self.assertEqual(event["time_end"], datetime.time(18, 45))
+
+    def test_google_timed_event_uses_the_computer_timezone_on_write(self):
+        data = {"summary": "Local", "all_day": False,
+                "date_start": datetime.date(2026, 9, 9),
+                "date_end": datetime.date(2026, 9, 9),
+                "time_start": datetime.time(17, 45), "time_end": datetime.time(18, 45)}
+        body = event_dict_to_google(data, ZoneInfo("Europe/Dublin"))
+        self.assertEqual(body["start"]["dateTime"], "2026-09-09T17:45:00+01:00")
+        self.assertEqual(body["start"]["timeZone"], "Europe/Dublin")
+
+    def test_google_named_timezone_is_used_when_datetime_has_no_offset(self):
+        raw = {"id": "g1", "summary": "Remote",
+               "start": {"dateTime": "2026-09-09T16:45:00", "timeZone": "UTC"},
+               "end": {"dateTime": "2026-09-09T17:45:00", "timeZone": "UTC"}}
+        calendar = {"id": "primary", "name": "Personal", "color": "#123456",
+                    "access_role": "owner"}
+        event = google_event_to_dict(
+            raw, calendar, {"id": "me.test"}, True, ZoneInfo("Europe/Dublin")
+        )
+        self.assertEqual(event["time_start"], datetime.time(17, 45))
 
     def test_offline_google_event_is_cached_and_read_only(self):
         """Cached Google events are marked unavailable for offline editing."""
@@ -456,7 +495,9 @@ class GoogleMappingTests(unittest.TestCase):
                "end": {"date": "2026-08-23"}}
         calendar = {"id": "primary", "name": "Personal", "color": "#123456",
                     "access_role": "owner"}
-        event = google_event_to_dict(raw, calendar, {"id": "me@example.com"}, False)
+        event = google_event_to_dict(
+            raw, calendar, {"id": "me@example.com"}, False, UTC
+        )
         self.assertTrue(event["cached"])
         self.assertFalse(event["editable"])
         self.assertEqual(event["date_end"], datetime.date(2026, 8, 22))
@@ -467,7 +508,9 @@ class GoogleMappingTests(unittest.TestCase):
                "start": {"date": "2026-08-22"}, "end": {"date": "2026-08-23"}}
         calendar = {"id": "primary", "name": "Personal", "color": "#123456",
                     "access_role": "owner"}
-        event = google_event_to_dict(raw, calendar, {"id": "me@example.com"}, True)
+        event = google_event_to_dict(
+            raw, calendar, {"id": "me@example.com"}, True, UTC
+        )
         self.assertEqual(event["event_type"], "birthday")
         self.assertFalse(event["editable"])
 
