@@ -1,4 +1,5 @@
 import datetime
+import locale
 from typing import Optional
 
 import gi
@@ -10,6 +11,16 @@ _ = l10n("clockenstein")
 
 from store import CalendarManager
 from backends.google import google_event_fits_sync_range
+
+
+def _uses_12_hour_clock(time_format):
+    if time_format == "12-hour":
+        return True
+    elif time_format == "24-hour":
+        return False
+    else:
+        fmt = locale.nl_langinfo(locale.T_FMT)
+        return "%I" in fmt or "%r" in fmt
 
 
 class _DatePicker(Gtk.MenuButton):
@@ -42,13 +53,15 @@ class _DatePicker(Gtk.MenuButton):
 
 
 def _format_time_spin(spin):
-    spin.set_text(f"{spin.get_value_as_int():02d}")
+    value = spin.get_value_as_int()
+    spin.set_text(str(value) if spin.get_adjustment().get_lower() == 1 else f"{value:02d}")
     return True
 
 
-def _time_picker():
+def _time_picker(use_12_hour):
     box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=3)
-    hour = Gtk.SpinButton.new_with_range(0, 23, 1)
+    hour = Gtk.SpinButton.new_with_range(1 if use_12_hour else 0,
+                                         12 if use_12_hour else 23, 1)
     minute = Gtk.SpinButton.new_with_range(0, 59, 1)
     for spin in (hour, minute):
         spin.set_numeric(True)
@@ -58,7 +71,14 @@ def _time_picker():
     box.pack_start(hour, False, False, 0)
     box.pack_start(Gtk.Label(label=":"), False, False, 0)
     box.pack_start(minute, False, False, 0)
-    return box, hour, minute
+    period = None
+    if use_12_hour:
+        period = Gtk.ComboBoxText()
+        period.append("am", _("AM"))
+        period.append("pm", _("PM"))
+        period.set_active_id("am")
+        box.pack_start(period, False, False, 0)
+    return box, hour, minute, period
 
 
 class EventDialog(Gtk.Dialog):
@@ -69,6 +89,7 @@ class EventDialog(Gtk.Dialog):
         event: Optional[dict] = None,
         default_date: Optional[datetime.date] = None,
         calendar_options: Optional[list] = None,
+        time_format="locale",
     ):
         is_new = event is None
         editable = is_new or bool(event.get("editable", True))
@@ -81,6 +102,7 @@ class EventDialog(Gtk.Dialog):
         self.event = event or {}
         self.is_new = is_new
         self.editable = editable
+        self.use_12_hour = _uses_12_hour_clock(time_format)
         self._populating = True
         self._adjusting_end = False
         if is_new:
@@ -192,7 +214,9 @@ class EventDialog(Gtk.Dialog):
         start_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.date_picker = _DatePicker()
         start_box.pack_start(self.date_picker, False, False, 0)
-        self.start_time, self.start_hour, self.start_minute = _time_picker()
+        self.start_time, self.start_hour, self.start_minute, self.start_period = _time_picker(
+            self.use_12_hour
+        )
         start_box.pack_start(self.start_time, False, False, 0)
         grid.attach(start_box, 1, 3, 2, 1)
 
@@ -200,16 +224,22 @@ class EventDialog(Gtk.Dialog):
         end_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.end_date_picker = _DatePicker()
         end_box.pack_start(self.end_date_picker, False, False, 0)
-        self.end_time, self.end_hour, self.end_minute = _time_picker()
+        self.end_time, self.end_hour, self.end_minute, self.end_period = _time_picker(
+            self.use_12_hour
+        )
         end_box.pack_start(self.end_time, False, False, 0)
         grid.attach(end_box, 1, 4, 2, 1)
 
         self.date_picker.calendar.connect("day-selected", self._on_start_changed)
         self.start_hour.connect("value-changed", self._on_start_changed)
         self.start_minute.connect("value-changed", self._on_start_changed)
+        if self.start_period:
+            self.start_period.connect("changed", self._on_start_changed)
         self.end_date_picker.calendar.connect("day-selected", self._on_end_changed)
         self.end_hour.connect("value-changed", self._on_end_changed)
         self.end_minute.connect("value-changed", self._on_end_changed)
+        if self.end_period:
+            self.end_period.connect("changed", self._on_end_changed)
 
         grid.attach(lbl(_("Location")), 0, 5, 1, 1)
         self.location_entry = Gtk.Entry()
@@ -257,10 +287,8 @@ class EventDialog(Gtk.Dialog):
         end_date = ev.get("date_end") or (date if all_day else default_end.date())
         self.date_picker.set_date(date)
         self.end_date_picker.set_date(end_date)
-        self.start_hour.set_value(start_time.hour)
-        self.start_minute.set_value(start_time.minute)
-        self.end_hour.set_value(end_time.hour)
-        self.end_minute.set_value(end_time.minute)
+        self._set_picker_time(self.start_hour, self.start_minute, self.start_period, start_time)
+        self._set_picker_time(self.end_hour, self.end_minute, self.end_period, end_time)
 
         self._on_allday_toggled(self.allday_switch, None)
 
@@ -288,21 +316,35 @@ class EventDialog(Gtk.Dialog):
                 self.end_date_picker.set_date(start_date)
                 self._adjusting_end = False
             return
-        start = datetime.datetime.combine(
-            start_date, datetime.time(self.start_hour.get_value_as_int(),
-                                      self.start_minute.get_value_as_int()))
-        end = datetime.datetime.combine(
-            end_date, datetime.time(self.end_hour.get_value_as_int(),
-                                    self.end_minute.get_value_as_int()))
+        start = datetime.datetime.combine(start_date, self._picker_time(
+            self.start_hour, self.start_minute, self.start_period))
+        end = datetime.datetime.combine(end_date, self._picker_time(
+            self.end_hour, self.end_minute, self.end_period))
         if end <= start:
             self._set_end_datetime(start + datetime.timedelta(hours=1))
 
     def _set_end_datetime(self, value):
         self._adjusting_end = True
         self.end_date_picker.set_date(value.date())
-        self.end_hour.set_value(value.hour)
-        self.end_minute.set_value(value.minute)
+        self._set_picker_time(self.end_hour, self.end_minute, self.end_period, value.time())
         self._adjusting_end = False
+
+    def _set_picker_time(self, hour, minute, period, value):
+        if period:
+            period.set_active_id("am" if value.hour < 12 else "pm")
+            hour.set_value(value.hour % 12 or 12)
+        else:
+            hour.set_value(value.hour)
+        minute.set_value(value.minute)
+
+    @staticmethod
+    def _picker_time(hour, minute, period):
+        hour_value = hour.get_value_as_int()
+        if period:
+            hour_value %= 12
+            if period.get_active_id() == "pm":
+                hour_value += 12
+        return datetime.time(hour_value, minute.get_value_as_int())
 
     def _set_form_sensitive(self, sensitive):
         for widget in (self.title_entry, self.allday_switch, self.date_picker, self.end_date_picker,
@@ -325,10 +367,10 @@ class EventDialog(Gtk.Dialog):
         time_start = time_end = None
 
         if not all_day:
-            time_start = datetime.time(self.start_hour.get_value_as_int(),
-                                       self.start_minute.get_value_as_int())
-            time_end = datetime.time(self.end_hour.get_value_as_int(),
-                                     self.end_minute.get_value_as_int())
+            time_start = self._picker_time(
+                self.start_hour, self.start_minute, self.start_period
+            )
+            time_end = self._picker_time(self.end_hour, self.end_minute, self.end_period)
 
         buf = self.desc_view.get_buffer()
         data = {

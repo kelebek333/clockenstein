@@ -1082,7 +1082,7 @@ class MainWindow(Gtk.Window):
             self.settings.set_int("window-height", allocation.height)
 
     def _on_event_activated(self, event):
-        dialog = EventDialog(self, store=self.store, event=event)
+        dialog = EventDialog(self, store=self.store, event=event, time_format=self.time_format)
         if dialog.run() in (Gtk.ResponseType.OK, Gtk.ResponseType.REJECT):
             notify_changed()
             self._refresh(refresh_remote=False)
@@ -1096,7 +1096,7 @@ class MainWindow(Gtk.Window):
                          self._week_selected_date if self._active_view == "Week" else
                          self.current_date)
         dialog = EventDialog(self, store=self.store, default_date=default_date or selected_date,
-                             calendar_options=calendars)
+                             calendar_options=calendars, time_format=self.time_format)
         if dialog.run() == Gtk.ResponseType.OK:
             notify_changed()
             self._refresh(refresh_remote=False)
