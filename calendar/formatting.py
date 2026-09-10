@@ -47,11 +47,15 @@ def capitalize_first(value):
     return value[:1].upper() + value[1:]
 
 
-def format_time(value):
-    pattern = locale.nl_langinfo(locale.T_FMT)
-    if "%I" in pattern or "%r" in pattern:
-        return value.strftime("%l:%M%P").strip()
-
-    pattern = pattern.replace("%T", "%H:%M:%S")
-    pattern = re.sub(r"([:.])?%S", "", pattern)
-    return value.strftime(pattern).strip()
+def format_time(value, time_format="locale"):
+    if time_format == "12-hour":
+        return value.strftime("%l:%M %p").strip()
+    elif time_format == "24-hour":
+        return value.strftime("%H:%M")
+    else:
+        fmt = locale.nl_langinfo(locale.T_FMT)
+        # Expand composite directives so their seconds can be removed as well.
+        fmt = fmt.replace("%T", "%H:%M:%S").replace("%r", "%I:%M:%S %p")
+        # %S, %OS, or %ES, including the separator before seconds.
+        fmt = re.sub(r"([^\w%]?)%(?:E|O)?S", "", fmt)
+        return value.strftime(re.sub(r"\s+", " ", fmt).strip()).strip()

@@ -19,7 +19,7 @@ OVERFLOW_HEIGHT = 16
 
 class MonthView(Gtk.Box):
     def __init__(self, today: datetime.date, on_event: Callable, on_day: Callable,
-                 on_scroll=None, on_select=None, first_weekday=0):
+                 on_scroll=None, on_select=None, first_weekday=0, time_format="locale"):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.today    = today
         self.on_event = on_event
@@ -28,6 +28,7 @@ class MonthView(Gtk.Box):
         self.on_select = on_select
         self.selected_date = today
         self.first_weekday = first_weekday
+        self.time_format = time_format
         self.max_lanes = 1
         self.event_height = EVENT_HEIGHT
         self._last_update = None
@@ -101,6 +102,11 @@ class MonthView(Gtk.Box):
         for cell in self.cells:
             cell.today = today
 
+    def set_time_format(self, time_format):
+        self.time_format = time_format
+        if self._last_update:
+            self.update(*self._last_update)
+
     def _render_events(self, grid_start, events):
         for widget in self.event_widgets:
             self.grid.remove(widget)
@@ -124,7 +130,8 @@ class MonthView(Gtk.Box):
                 if lane is not None:
                     occupied[row][lane].update(columns)
                     used_lanes[row] = max(used_lanes[row], lane + 1)
-                    pill = _SpanPill(event, self.on_event, segment_start == event["date_start"])
+                    pill = _SpanPill(event, self.on_event, segment_start == event["date_start"],
+                                     self.time_format)
                     pill.set_size_request(-1, self.event_height)
                     pill.set_valign(Gtk.Align.START)
                     pill.set_margin_top(DAY_HEADER_HEIGHT + lane * (self.event_height + EVENT_GAP))
@@ -249,7 +256,7 @@ class _DayCell(Gtk.EventBox):
 
 
 class _SpanPill(Gtk.EventBox):
-    def __init__(self, event, on_event, show_accent):
+    def __init__(self, event, on_event, show_accent, time_format):
         super().__init__()
         single_timed = (not event.get("all_day") and
                         event.get("date_end", event["date_start"]) == event["date_start"])
@@ -262,7 +269,7 @@ class _SpanPill(Gtk.EventBox):
         if _event_has_ended(event):
             self.set_opacity(0.5)
         self.connect("button-press-event", lambda _widget, _click: on_event(event))
-        self.set_tooltip_markup(_event_tooltip(event))
+        self.set_tooltip_markup(_event_tooltip(event, time_format))
 
         content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         if single_timed:
@@ -296,11 +303,11 @@ def _draw_event_dot(widget, cr, color):
     return False
 
 
-def _event_tooltip(event):
+def _event_tooltip(event, time_format="locale"):
     title = GLib.markup_escape_text(event.get("summary") or _("Untitled"))
     properties = []
     if event.get("time_start") and not event.get("all_day"):
-        properties.append(format_time(event["time_start"]))
+        properties.append(format_time(event["time_start"], time_format))
     if event.get("location"):
         properties.append(str(event["location"]))
     if not properties:

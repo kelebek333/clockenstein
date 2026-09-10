@@ -14,6 +14,16 @@
       <summary>First day of the week</summary>
       <description>Use the locale default, Monday or Sunday.</description>
     </key>
+    <key name="time-format" type="s">
+      <choices>
+        <choice value="locale"/>
+        <choice value="12-hour"/>
+        <choice value="24-hour"/>
+      </choices>
+      <default>'locale'</default>
+      <summary>Time format</summary>
+      <description>Use the system locale, a 12-hour clock, or a 24-hour clock.</description>
+    </key>
     <key name="window-width" type="i">
       <default>1100</default>
       <range min="640" max="32768"/>

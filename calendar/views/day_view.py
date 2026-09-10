@@ -8,7 +8,7 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import capitalize_first
+from formatting import capitalize_first, format_time
 from views.colors import apply_tinted_event_color
 from views.month_view import _event_has_ended
 
@@ -24,13 +24,15 @@ EVENT_COLUMN_GAP = 4
 
 
 class DayView(Gtk.Box):
-    def __init__(self, today: datetime.date, timezone, on_event: Callable, on_new_event: Callable):
+    def __init__(self, today: datetime.date, timezone, on_event: Callable, on_new_event: Callable,
+                 time_format="locale"):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.today    = today
         self.timezone = timezone
         self.current_date = today
         self.on_event = on_event
         self.on_new_event = on_new_event
+        self.time_format = time_format
         self._positioned_events = []
         self._build()
 
@@ -79,8 +81,9 @@ class DayView(Gtk.Box):
         self.gutter = Gtk.Fixed()
         self.gutter.set_size_request(52, DAY_HEIGHT)
         body.pack_start(self.gutter, False, False, 0)
+        self.hour_labels = []
         for h in range(24):
-            lbl = Gtk.Label(label=f"{h:02d}:00")
+            lbl = Gtk.Label()
             lbl.set_size_request(52, 20)
             lbl.set_xalign(1)
             lbl.set_yalign(0.5)
@@ -88,6 +91,7 @@ class DayView(Gtk.Box):
             # Centre the label on the same coordinate used by the grid line and
             # by events starting exactly on the hour.
             self.gutter.put(lbl, 0, max(0, _minute_to_y(h * 60) - 10))
+            self.hour_labels.append((h, lbl))
         self.now_label = Gtk.Label()
         self.now_label.set_size_request(52, 20)
         self.now_label.set_xalign(1)
@@ -115,6 +119,7 @@ class DayView(Gtk.Box):
         self.overlay.add_overlay(self.event_layer)
 
         GLib.timeout_add_seconds(30, self._update_now_line)
+        self._update_time_labels()
 
     def update(self, current_date: datetime.date, events: list[dict]):
         self.current_date = current_date
@@ -146,7 +151,7 @@ class DayView(Gtk.Box):
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             content.set_valign(Gtk.Align.CENTER if full_day_column else Gtk.Align.START)
             title, when, location = _event_label_parts(
-                ev, start_minutes, end_minutes, full_day_column
+                ev, start_minutes, end_minutes, full_day_column, self.time_format
             )
             if full_day_column:
                 when, location = "", ""
@@ -219,7 +224,7 @@ class DayView(Gtk.Box):
         if visible:
             now = datetime.datetime.now(self.timezone)
             minutes = now.hour * 60 + now.minute
-            self.now_label.set_text(now.strftime("%H:%M"))
+            self.now_label.set_text(format_time(now.time(), self.time_format))
             self.gutter.move(self.now_label, 0, _minute_to_y(minutes) - 10)
         self.background.queue_draw()
         return True
@@ -231,6 +236,15 @@ class DayView(Gtk.Box):
     def set_timezone(self, timezone, today):
         self.timezone = timezone
         self.set_today(today)
+
+    def set_time_format(self, time_format):
+        self.time_format = time_format
+        self._update_time_labels()
+        self._update_now_line()
+
+    def _update_time_labels(self):
+        for hour, label in self.hour_labels:
+            label.set_text(format_time(datetime.time(hour), self.time_format))
 
     def _position_event_widgets(self, _layer, allocation):
         for item in self._positioned_events:
@@ -304,18 +318,16 @@ def _initial_scroll_minute(events, days, include_now):
     return max(0, min(relevant) - 60) if relevant else 8 * 60
 
 
-def _event_label_parts(event, start_minutes, end_minutes, all_day):
+def _event_label_parts(event, start_minutes, end_minutes, all_day, time_format="locale"):
     title = event.get("summary") or _("Untitled")
     when = _("All day") if all_day else (
-        f"{_format_minutes(start_minutes)}–{_format_minutes(end_minutes)}"
+        f"{_format_minutes(start_minutes, time_format)}–{_format_minutes(end_minutes, time_format)}"
     )
     return title, when, event.get("location", "")
 
 
-def _format_minutes(minutes):
-    if minutes == DAY_END_MINUTE:
-        return "24:00"
-    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+def _format_minutes(minutes, time_format="locale"):
+    return format_time(datetime.time((minutes // 60) % 24, minutes % 60), time_format)
 
 
 def _draw_day_grid(widget, cr):

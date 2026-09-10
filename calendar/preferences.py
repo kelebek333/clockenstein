@@ -36,8 +36,26 @@ class PreferencesDialog(Gtk.Dialog):
         row.pack_end(combo, False, False, 0)
         box.pack_start(row, False, False, 0)
 
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        label = Gtk.Label(label=_("Time format"), xalign=0)
+        label.set_hexpand(True)
+        row.pack_start(label, True, True, 0)
+
+        combo = Gtk.ComboBoxText()
+        combo.append("locale", _("Use locale default"))
+        combo.append("12-hour", _("12-hour clock"))
+        combo.append("24-hour", _("24-hour clock"))
+        combo.set_active_id(settings.get_string("time-format"))
+        combo.connect("changed", self._time_format_changed, settings)
+        row.pack_end(combo, False, False, 0)
+        box.pack_start(row, False, False, 0)
+
         self.show_all()
 
     @staticmethod
     def _first_day_changed(combo, settings):
         settings.set_string("first-day-of-week", combo.get_active_id())
+
+    @staticmethod
+    def _time_format_changed(combo, settings):
+        settings.set_string("time-format", combo.get_active_id())

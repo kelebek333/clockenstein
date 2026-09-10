@@ -32,9 +32,11 @@ class MainWindow(Gtk.Window):
         self.first_weekday = resolve_first_weekday(
             self.settings.get_string("first-day-of-week")
         )
+        self.time_format = self.settings.get_string("time-format")
         self.settings.connect(
             "changed::first-day-of-week", self._first_weekday_changed
         )
+        self.settings.connect("changed::time-format", self._time_format_changed)
         width = self.settings.get_int("window-width")
         height = self.settings.get_int("window-height")
         self.set_default_size(width, height)
@@ -191,13 +193,14 @@ class MainWindow(Gtk.Window):
         calendar_area.pack_start(self.stack, True, True, 0)
         self.month_view = MonthView(
             self.today, self._on_event_activated, self._new_event,
-            self._scroll_month, self._select_month_date, self.first_weekday
+            self._scroll_month, self._select_month_date, self.first_weekday, self.time_format
         )
         self.week_view = WeekView(
             self.today, self.timezone, self._on_event_activated, self._new_event,
-            self._select_week_date, self.first_weekday
+            self._select_week_date, self.first_weekday, self.time_format
         )
-        self.day_view = DayView(self.today, self.timezone, self._on_event_activated, self._new_event)
+        self.day_view = DayView(self.today, self.timezone, self._on_event_activated,
+                                self._new_event, self.time_format)
         for name, view in (("Month", self.month_view), ("Week", self.week_view),
                            ("Day", self.day_view)):
             self.stack.add_named(view, name)
@@ -256,6 +259,13 @@ class MainWindow(Gtk.Window):
         self.week_view.set_first_weekday(self.first_weekday)
         self.mini_cal.set_first_weekday(self.first_weekday)
         self._month_week_offset = 0
+        self._refresh(refresh_remote=False)
+
+    def _time_format_changed(self, settings, _key):
+        self.time_format = settings.get_string("time-format")
+        self.month_view.set_time_format(self.time_format)
+        self.week_view.set_time_format(self.time_format)
+        self.day_view.set_time_format(self.time_format)
         self._refresh(refresh_remote=False)
 
     def _show_about(self, _item):
@@ -385,7 +395,7 @@ class MainWindow(Gtk.Window):
         title.get_style_context().add_class("clockenstein-upcoming-title")
         parts = [capitalize_first(event["date_start"].strftime("%A %-d %b"))] if show_date else []
         if not event.get("all_day") and event.get("time_start"):
-            parts.append(format_time(event["time_start"]))
+            parts.append(format_time(event["time_start"], self.time_format))
         when = " · ".join(parts)
         if when:
             detail = Gtk.Label(label=when, xalign=0)
