@@ -21,6 +21,17 @@
     font-weight: bold;
     padding: 2px 4px;
 }
+.clockenstein-month-label {
+    font-size: 0.78em;
+    font-weight: bold;
+    color: alpha(@theme_selected_bg_color, 0.85);
+    padding: 2px 6px;
+}
+.clockenstein-month-start {
+    background-image: linear-gradient(to bottom right,
+        alpha(@theme_selected_bg_color, 0.16),
+        alpha(@theme_selected_bg_color, 0) 30%);
+}
 .clockenstein-today { background-color: alpha(@theme_selected_bg_color, 0.07); }
 .clockenstein-selected-day { background-color: alpha(@theme_selected_bg_color, 0.13); }
 .clockenstein-today .clockenstein-day-number { color: @theme_selected_bg_color; }

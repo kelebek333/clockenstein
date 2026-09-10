@@ -83,8 +83,8 @@ class MonthView(Gtk.Box):
         grid_start = (start_of_week(first, self.first_weekday) +
                       datetime.timedelta(weeks=week_offset))
 
-        for i, cell in enumerate(self.cells):
-            day = grid_start + datetime.timedelta(days=i)
+        for index, cell in enumerate(self.cells):
+            day = grid_start + datetime.timedelta(days=index)
             cell.set_day(day, day.month == current_date.month)
             cell.set_selected(day == self.selected_date)
 
@@ -191,10 +191,22 @@ class _DayCell(Gtk.EventBox):
         outer.set_margin_end(3)
         self.add(outer)
 
+        header = Gtk.Overlay()
+        header.set_hexpand(True)
+        outer.pack_start(header, False, False, 0)
+
+        self.month_lbl = Gtk.Label()
+        self.month_lbl.set_xalign(0)
+        self.month_lbl.set_hexpand(True)
+        self.month_lbl.set_opacity(0)
+        self.month_lbl.get_style_context().add_class("clockenstein-month-label")
+        header.add(self.month_lbl)
+
         self.day_lbl = Gtk.Label()
         self.day_lbl.set_xalign(1)
+        self.day_lbl.set_halign(Gtk.Align.END)
         self.day_lbl.get_style_context().add_class("clockenstein-day-number")
-        outer.pack_start(self.day_lbl, False, False, 0)
+        header.add_overlay(self.day_lbl)
 
         # Multi-day bars are drawn across the grid by MonthView.  Reserve their
         # rows with an actual widget so GTK always lays the per-day events below
@@ -219,16 +231,19 @@ class _DayCell(Gtk.EventBox):
     def set_day(self, date, in_month):
         self._date = date
         ctx = self.get_style_context()
-        for c in ("clockenstein-today", "clockenstein-other-month"):
+        for c in ("clockenstein-today", "clockenstein-other-month", "clockenstein-month-start"):
             ctx.remove_class(c)
         if date == self.today:
             ctx.add_class("clockenstein-today")
         if not in_month:
             ctx.add_class("clockenstein-other-month")
+        if date.day == 1:
+            ctx.add_class("clockenstein-month-start")
 
-        self.day_lbl.set_text(
-            f"{date.day} {date.strftime('%b')}" if date.day == 1 else str(date.day)
-        )
+        show_month = date.day == 1
+        self.month_lbl.set_opacity(1 if show_month else 0)
+        self.month_lbl.set_text(date.strftime("%B").upper() if show_month else "")
+        self.day_lbl.set_text(str(date.day))
 
     def set_selected(self, selected):
         context = self.get_style_context()
