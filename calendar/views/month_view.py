@@ -8,7 +8,7 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import WEEKDAY_NAMES, format_time
+from formatting import format_time, ordered_weekday_names, start_of_week
 from views.colors import apply_tinted_event_color
 
 EVENT_HEIGHT = 22
@@ -19,7 +19,7 @@ OVERFLOW_HEIGHT = 16
 
 class MonthView(Gtk.Box):
     def __init__(self, today: datetime.date, on_event: Callable, on_day: Callable,
-                 on_scroll=None, on_select=None):
+                 on_scroll=None, on_select=None, first_weekday=0):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.today    = today
         self.on_event = on_event
@@ -27,6 +27,7 @@ class MonthView(Gtk.Box):
         self.on_scroll = on_scroll
         self.on_select = on_select
         self.selected_date = today
+        self.first_weekday = first_weekday
         self.max_lanes = 1
         self.event_height = EVENT_HEIGHT
         self._last_update = None
@@ -45,13 +46,15 @@ class MonthView(Gtk.Box):
     def _build(self):
         dow = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         dow.get_style_context().add_class("clockenstein-dow-header")
-        for name in WEEKDAY_NAMES:
+        self.weekday_labels = []
+        for name in ordered_weekday_names(self.first_weekday):
             lbl = Gtk.Label(label=name)
             lbl.set_hexpand(True)
             lbl.set_xalign(1)
             lbl.set_margin_end(7)
             lbl.get_style_context().add_class("clockenstein-dow-label")
             dow.pack_start(lbl, True, True, 0)
+            self.weekday_labels.append(lbl)
         self.pack_start(dow, False, False, 0)
 
         self.grid = Gtk.Grid()
@@ -76,7 +79,7 @@ class MonthView(Gtk.Box):
             self.selected_date = selected_date
         self._last_update = (current_date, events, week_offset, self.selected_date)
         first = current_date.replace(day=1)
-        grid_start = (first - datetime.timedelta(days=first.weekday()) +
+        grid_start = (start_of_week(first, self.first_weekday) +
                       datetime.timedelta(weeks=week_offset))
 
         for i, cell in enumerate(self.cells):
@@ -86,6 +89,12 @@ class MonthView(Gtk.Box):
 
         self._render_events(grid_start, events)
         self.show_all()
+
+    def set_first_weekday(self, first_weekday):
+        self.first_weekday = first_weekday
+        for label, name in zip(
+                self.weekday_labels, ordered_weekday_names(first_weekday)):
+            label.set_text(name)
 
     def set_today(self, today: datetime.date):
         self.today = today

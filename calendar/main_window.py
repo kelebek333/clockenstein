@@ -10,9 +10,11 @@ from xapp.util import l10n
 _ = l10n("clockenstein")
 
 from event_dialog import EventDialog
+from preferences import PreferencesDialog
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
 from dbus import BUS_INTERFACE, BUS_NAME, BUS_PATH, notify_changed
-from formatting import capitalize_first, format_time
+from formatting import (capitalize_first, format_time, resolve_first_weekday,
+                        start_of_week)
 from store import CalendarManager, watch_timezone_changes
 from views.colors import apply_tinted_event_color
 from views.month_view import MonthView
@@ -27,6 +29,12 @@ class MainWindow(Gtk.Window):
         self.refresh_timezone()
         self.store = CalendarManager(self.timezone)
         self.settings = Gio.Settings.new("org.x.clockenstein.calendar")
+        self.first_weekday = resolve_first_weekday(
+            self.settings.get_string("first-day-of-week")
+        )
+        self.settings.connect(
+            "changed::first-day-of-week", self._first_weekday_changed
+        )
         width = self.settings.get_int("window-width")
         height = self.settings.get_int("window-height")
         self.set_default_size(width, height)
@@ -105,9 +113,12 @@ class MainWindow(Gtk.Window):
         self.set_titlebar(header)
 
         menu = Gtk.Menu()
-        calendars_item = Gtk.MenuItem(label=_("Calendars…"))
+        calendars_item = Gtk.MenuItem(label=_("Calendars"))
         calendars_item.connect("activate", self._manage_calendars)
         menu.append(calendars_item)
+        preferences_item = Gtk.MenuItem(label=_("Preferences"))
+        preferences_item.connect("activate", self._show_preferences)
+        menu.append(preferences_item)
         menu.append(Gtk.SeparatorMenuItem())
         about_item = Gtk.MenuItem(label=_("About"))
         about_item.connect("activate", self._show_about)
@@ -178,10 +189,14 @@ class MainWindow(Gtk.Window):
         self.stack.set_hexpand(True)
         self.stack.set_vexpand(True)
         calendar_area.pack_start(self.stack, True, True, 0)
-        self.month_view = MonthView(self.today, self._on_event_activated, self._new_event,
-                                    self._scroll_month, self._select_month_date)
-        self.week_view = WeekView(self.today, self.timezone, self._on_event_activated, self._new_event,
-                                  self._select_week_date)
+        self.month_view = MonthView(
+            self.today, self._on_event_activated, self._new_event,
+            self._scroll_month, self._select_month_date, self.first_weekday
+        )
+        self.week_view = WeekView(
+            self.today, self.timezone, self._on_event_activated, self._new_event,
+            self._select_week_date, self.first_weekday
+        )
         self.day_view = DayView(self.today, self.timezone, self._on_event_activated, self._new_event)
         for name, view in (("Month", self.month_view), ("Week", self.week_view),
                            ("Day", self.day_view)):
@@ -196,7 +211,9 @@ class MainWindow(Gtk.Window):
         outer.set_hexpand(False)
         for side in ("top", "bottom", "start", "end"):
             getattr(outer, f"set_margin_{side}")(8)
-        self.mini_cal = MiniCalendar(self.current_date, self._on_mini_date_selected)
+        self.mini_cal = MiniCalendar(
+            self.current_date, self._on_mini_date_selected, self.first_weekday
+        )
         outer.pack_start(self.mini_cal, False, False, 0)
         outer.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 4)
         calendars_label = Gtk.Label(label=_("Calendars"), xalign=0)
@@ -225,6 +242,21 @@ class MainWindow(Gtk.Window):
         self.status_label.get_style_context().add_class("clockenstein-status")
         outer.pack_start(self.status_label, False, False, 0)
         return outer
+
+    def _show_preferences(self, _item):
+        dialog = PreferencesDialog(self, self.settings)
+        dialog.run()
+        dialog.destroy()
+
+    def _first_weekday_changed(self, settings, _key):
+        self.first_weekday = resolve_first_weekday(
+            settings.get_string("first-day-of-week")
+        )
+        self.month_view.set_first_weekday(self.first_weekday)
+        self.week_view.set_first_weekday(self.first_weekday)
+        self.mini_cal.set_first_weekday(self.first_weekday)
+        self._month_week_offset = 0
+        self._refresh(refresh_remote=False)
 
     def _show_about(self, _item):
         dialog = Gtk.AboutDialog(transient_for=self, modal=True)
@@ -1071,19 +1103,19 @@ class MainWindow(Gtk.Window):
         if self._active_view == "Month":
             return self._month_date_range()
         if self._active_view == "Week":
-            start = d - datetime.timedelta(days=d.weekday())
+            start = start_of_week(d, self.first_weekday)
             return start, start + datetime.timedelta(days=6)
         return d, d
 
     def _month_date_range(self):
         first = datetime.date(self.current_date.year, self.current_date.month, 1)
-        start = (first - datetime.timedelta(days=first.weekday()) +
+        start = (start_of_week(first, self.first_weekday) +
                  datetime.timedelta(weeks=self._month_week_offset))
         return start, start + datetime.timedelta(days=41)
 
     def _set_month_grid_start(self, start):
         first = datetime.date(self.current_date.year, self.current_date.month, 1)
-        base = first - datetime.timedelta(days=first.weekday())
+        base = start_of_week(first, self.first_weekday)
         self._month_week_offset = (start - base).days // 7
 
     def _caldav_navigation_needs_refresh(self):

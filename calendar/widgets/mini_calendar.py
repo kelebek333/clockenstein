@@ -8,15 +8,16 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import WEEKDAY_NAMES
+from formatting import ordered_weekday_names, start_of_week
 
 
 class MiniCalendar(Gtk.Box):
-    def __init__(self, date, on_date_selected):
+    def __init__(self, date, on_date_selected, first_weekday=0):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.get_style_context().add_class("clockenstein-mini-calendar")
         self.date = date
         self.on_date_selected = on_date_selected
+        self.first_weekday = first_weekday
         self.events = []
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT_RIGHT,
                                transition_duration=120)
@@ -49,11 +50,13 @@ class MiniCalendar(Gtk.Box):
         corner = Gtk.Label()
         corner.set_size_request(22, -1)
         weekdays.pack_start(corner, False, False, 0)
-        for name in WEEKDAY_NAMES:
+        self.weekday_labels = []
+        for name in ordered_weekday_names(self.first_weekday):
             label = Gtk.Label(label=name)
             label.set_hexpand(True)
             label.get_style_context().add_class("mini-calendar-weekday")
             weekdays.pack_start(label, True, True, 0)
+            self.weekday_labels.append(label)
         calendar_page.pack_start(weekdays, False, False, 0)
         self.weeks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         calendar_page.pack_start(self.weeks_box, False, False, 0)
@@ -84,6 +87,13 @@ class MiniCalendar(Gtk.Box):
         if date != self.date:
             self.date = date
             self._render()
+
+    def set_first_weekday(self, first_weekday):
+        self.first_weekday = first_weekday
+        for label, name in zip(
+                self.weekday_labels, ordered_weekday_names(first_weekday)):
+            label.set_text(name)
+        self._render()
 
     def set_events(self, events):
         self.events = events
@@ -165,9 +175,9 @@ class MiniCalendar(Gtk.Box):
         for child in self.weeks_box.get_children():
             self.weeks_box.remove(child)
         first = datetime.date(self.date.year, self.date.month, 1)
-        grid_start = first - datetime.timedelta(days=first.weekday())
+        grid_start = start_of_week(first, self.first_weekday)
         colors = self._event_colors()
-        selected_week = self.date - datetime.timedelta(days=self.date.weekday())
+        selected_week = start_of_week(self.date, self.first_weekday)
         for week_index in range(6):
             week_start = grid_start + datetime.timedelta(weeks=week_index)
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)

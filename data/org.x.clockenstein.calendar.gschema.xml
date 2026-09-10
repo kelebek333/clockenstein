@@ -4,6 +4,16 @@
     <key name="default-view" type="s">
       <default>'month'</default>
     </key>
+    <key name="first-day-of-week" type="s">
+      <choices>
+        <choice value="locale"/>
+        <choice value="monday"/>
+        <choice value="sunday"/>
+      </choices>
+      <default>'locale'</default>
+      <summary>First day of the week</summary>
+      <description>Use the locale default, Monday or Sunday.</description>
+    </key>
     <key name="window-width" type="i">
       <default>1100</default>
       <range min="640" max="32768"/>

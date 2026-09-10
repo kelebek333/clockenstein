@@ -8,7 +8,7 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import WEEKDAY_NAMES
+from formatting import WEEKDAY_NAMES, start_of_week
 from views.colors import apply_tinted_event_color
 from views.month_view import _event_has_ended, _event_tooltip
 from views.day_view import (ALL_DAY_EVENT_MARGIN, ALL_DAY_HEIGHT,
@@ -24,7 +24,7 @@ END_HOUR    = 24
 
 class WeekView(Gtk.Box):
     def __init__(self, today: datetime.date, timezone, on_event: Callable, on_new_event: Callable,
-                 on_select=None):
+                 on_select=None, first_weekday=0):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.today    = today
         self.timezone = timezone
@@ -32,6 +32,7 @@ class WeekView(Gtk.Box):
         self.on_new_event = on_new_event
         self.on_select = on_select
         self.selected_date = today
+        self.first_weekday = first_weekday
         self._shows_today = True
         self._build()
 
@@ -128,7 +129,7 @@ class WeekView(Gtk.Box):
     def update(self, current_date: datetime.date, events: list[dict], selected_date=None):
         if selected_date is not None:
             self.selected_date = selected_date
-        start = current_date - datetime.timedelta(days=current_date.weekday())
+        start = start_of_week(current_date, self.first_weekday)
         week = [start + datetime.timedelta(days=i) for i in range(7)]
         self._shows_today = self.today in week
 
@@ -194,6 +195,9 @@ class WeekView(Gtk.Box):
         GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
                       _minute_to_y(scroll_minute))
         self._update_now_line()
+
+    def set_first_weekday(self, first_weekday):
+        self.first_weekday = first_weekday
 
     def set_today(self, today: datetime.date):
         self.today = today

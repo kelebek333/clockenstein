@@ -15,6 +15,7 @@ install_data(
   'calendar/formatting.py',
   'calendar/store.py',
   'calendar/event_dialog.py',
+  'calendar/preferences.py',
   'calendar/style.css',
   install_dir: calendar_dir,
 )
