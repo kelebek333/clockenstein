@@ -36,6 +36,19 @@ class MonthView(Gtk.Box):
         self._build()
         self.connect("size-allocate", self._on_size_allocate)
 
+    def _on_scroll(self, _widget, event):
+        if not self.on_scroll:
+            return False
+        if event.direction == Gdk.ScrollDirection.UP:
+            self.on_scroll(-1)
+        elif event.direction == Gdk.ScrollDirection.DOWN:
+            self.on_scroll(1)
+        elif event.direction == Gdk.ScrollDirection.SMOOTH:
+            self.on_scroll(event.delta_y)
+        else:
+            return False
+        return True
+
     def do_get_preferred_height(self):
         _minimum, natural = Gtk.Box.do_get_preferred_height(self)
         return 390, max(390, natural)
@@ -45,6 +58,13 @@ class MonthView(Gtk.Box):
         return 390, max(390, natural)
 
     def _build(self):
+        scroll_area = Gtk.EventBox()
+        scroll_area.add_events(Gdk.EventMask.SCROLL_MASK)
+        scroll_area.connect("scroll-event", self._on_scroll)
+        self.pack_start(scroll_area, True, True, 0)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        scroll_area.add(content)
+
         dow = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         dow.get_style_context().add_class("clockenstein-dow-header")
         self.weekday_labels = []
@@ -56,20 +76,20 @@ class MonthView(Gtk.Box):
             lbl.get_style_context().add_class("clockenstein-dow-label")
             dow.pack_start(lbl, True, True, 0)
             self.weekday_labels.append(lbl)
-        self.pack_start(dow, False, False, 0)
+        content.pack_start(dow, False, False, 0)
 
         self.grid = Gtk.Grid()
         self.grid.set_row_homogeneous(True)
         self.grid.set_column_homogeneous(True)
         self.grid.set_hexpand(True)
         self.grid.set_vexpand(True)
-        self.pack_start(self.grid, True, True, 0)
+        content.pack_start(self.grid, True, True, 0)
         self.event_widgets = []
 
         self.cells: list[_DayCell] = []
         for row in range(6):
             for col in range(7):
-                cell = _DayCell(self.today, self.on_event, self.on_day, self.on_scroll,
+                cell = _DayCell(self.today, self.on_event, self.on_day,
                                 self.on_select)
                 self.grid.attach(cell, col, row, 1, 1)
                 self.cells.append(cell)
@@ -171,18 +191,15 @@ class MonthView(Gtk.Box):
 
 
 class _DayCell(Gtk.EventBox):
-    def __init__(self, today, on_event, on_day, on_scroll=None, on_select=None):
+    def __init__(self, today, on_event, on_day, on_select=None):
         super().__init__()
         self.today    = today
         self.on_event = on_event
         self.on_day   = on_day
-        self.on_scroll = on_scroll
         self.on_select = on_select
         self._date    = None
         self.get_style_context().add_class("clockenstein-day-cell")
-        self.add_events(Gdk.EventMask.SCROLL_MASK)
         self.connect("button-press-event", self._on_click)
-        self.connect("scroll-event", self._on_scroll)
 
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         outer.set_margin_top(2)
@@ -257,18 +274,6 @@ class _DayCell(Gtk.EventBox):
             self.on_select(self._date)
         if ev.type == Gdk.EventType.DOUBLE_BUTTON_PRESS and self._date:
             self.on_day(self._date)
-
-    def _on_scroll(self, _widget, event):
-        if not self.on_scroll:
-            return False
-        if event.direction == Gdk.ScrollDirection.UP:
-            self.on_scroll(-1)
-        elif event.direction == Gdk.ScrollDirection.DOWN:
-            self.on_scroll(1)
-        elif event.direction == Gdk.ScrollDirection.SMOOTH:
-            self.on_scroll(event.delta_y)
-        return True
-
 
 class _SpanPill(Gtk.EventBox):
     def __init__(self, event, on_event, show_accent, time_format):
