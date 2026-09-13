@@ -75,6 +75,7 @@ gir1.2-gtk-3.0
 gir1.2-gsound-1.0
 gir1.2-secret-1
 python3
+python3-babel
 python3-caldav
 python3-gi
 python3-google-auth-httplib2

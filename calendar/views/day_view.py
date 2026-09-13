@@ -1,6 +1,8 @@
 import datetime
 from typing import Callable
 
+import babel.core
+import babel.dates
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib, Pango
@@ -123,7 +125,9 @@ class DayView(Gtk.Box):
 
     def update(self, current_date: datetime.date, events: list[dict]):
         self.current_date = current_date
-        self.date_label.set_text(capitalize_first(current_date.strftime("%A %-d %B %Y")))
+        locale_name = babel.core.default_locale(("LC_ALL", "LC_TIME", "LANG"))
+        date_text = babel.dates.format_date(current_date, format="full", locale=locale_name)
+        self.date_label.set_text(capitalize_first(date_text))
         day_events = [e for e in events
                       if e["date_start"] <= current_date <= e.get("date_end", e["date_start"])]
 
