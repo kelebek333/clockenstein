@@ -124,7 +124,9 @@ class ClockensteinDaemon:
     def _bus_acquired(self, connection, _name):
         self._log("Connected to the session bus")
         self.connection = connection
-        self.registration_id = connection.register_object(
+        register_object = getattr(connection, "register_object_with_closures2",
+                                  connection.register_object)
+        self.registration_id = register_object(
             BUS_PATH,
             self.node_info.interfaces[0],
             self._handle_method_call,
