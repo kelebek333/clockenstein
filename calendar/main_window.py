@@ -12,7 +12,7 @@ _ = l10n("clockenstein")
 from event_dialog import EventDialog
 from preferences import PreferencesDialog
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
-from dbus import BUS_INTERFACE, BUS_NAME, BUS_PATH, notify_changed
+from dbus import AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH, notify_changed
 from formatting import (capitalize_first, format_time, resolve_first_weekday,
                         start_of_week)
 from store import CalendarManager, watch_timezone_changes
@@ -53,10 +53,12 @@ class MainWindow(Gtk.Window):
         view_names = {"month": "Month", "week": "Week", "day": "Day"}
         self._active_view = view_names.get(saved_view, "Month")
         self._refreshing = False
+        self._service_running = {BUS_NAME: False, AGENT_BUS_NAME: False}
         self._build_ui()
         # Keep the monitor alive; otherwise it may be garbage-collected.
         self.timezone_monitor = watch_timezone_changes(self.timezone_changed)
         self._subscribe_to_daemon()
+        self._watch_services()
         geometry = Gdk.Geometry()
         geometry.min_width = 640
         geometry.min_height = 460
@@ -79,6 +81,36 @@ class MainWindow(Gtk.Window):
         if self._daemon_connection and self._daemon_subscription:
             self._daemon_connection.signal_unsubscribe(self._daemon_subscription)
             self._daemon_subscription = 0
+
+    def _watch_services(self):
+        self._service_watches = [
+            Gio.bus_watch_name(Gio.BusType.SESSION, name,
+                               Gio.BusNameWatcherFlags.NONE,
+                               self._service_appeared, self._service_vanished)
+            for name in self._service_running
+        ]
+        self.connect("destroy", self._unwatch_services)
+
+    def _unwatch_services(self, _window):
+        for watch in self._service_watches:
+            Gio.bus_unwatch_name(watch)
+
+    def _service_appeared(self, _connection, name, _owner):
+        self._service_running[name] = True
+        self._update_range_infobar()
+
+    def _service_vanished(self, _connection, name):
+        self._service_running[name] = False
+        self._update_range_infobar()
+
+    def _service_warning(self):
+        daemon_running = self._service_running[BUS_NAME]
+        agent_running = self._service_running[AGENT_BUS_NAME]
+        if not daemon_running:
+            return _("The calendar daemon is not running. Synchronization and reminders may be unavailable.")
+        if not agent_running:
+            return _("The notification agent is not running. Reminders may be unavailable.")
+        return ""
 
     def _daemon_changed(self, _connection, _sender, _path, _interface,
                         _signal, _parameters):
@@ -323,14 +355,20 @@ class MainWindow(Gtk.Window):
         return calendars
 
     def _update_range_infobar(self):
-        calendars = self._google_calendars_out_of_range()
-        if not calendars:
+        service_warning = self._service_warning()
+        calendars = self._google_calendars_out_of_range() if not service_warning else []
+        if not service_warning and not calendars:
             self.range_infobar.hide()
             return
-        names = ", ".join(calendars)
-        self.range_infobar_label.set_text(
-            _("This date is outside the sync range for: %s. Events may be missing.") % names
+        if service_warning:
+            message = service_warning
+        else:
+            names = ", ".join(calendars)
+            message = _("This date is outside the sync range for: %s. Events may be missing.") % names
+        self.range_infobar.set_message_type(
+            Gtk.MessageType.WARNING if service_warning else Gtk.MessageType.INFO
         )
+        self.range_infobar_label.set_text(message)
         self.range_infobar.get_content_area().show_all()
         self.range_infobar.show()
 

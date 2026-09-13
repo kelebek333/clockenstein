@@ -22,6 +22,7 @@ APPLICATION_NAME = _("Calendar Event")
 BUS_NAME = "org.x.clockenstein.Calendar.Service"
 BUS_PATH = "/org/x/clockenstein/Calendar/Service"
 BUS_INTERFACE = "org.x.clockenstein.Calendar.Service"
+AGENT_BUS_NAME = "org.x.clockenstein.Calendar.NotificationAgent"
 SETTINGS_SCHEMA = "org.x.clockenstein.daemon"
 VERBOSE_KEY = "verbose"
 MUTED_KEY = "notification-muted"
@@ -39,6 +40,7 @@ class NotificationAgent:
         self.updating_mute_items = False
         self.connection = None
         self.subscription_id = 0
+        self.name_owner_id = 0
         self.windows = set()
         self.sound_loops = {}
         self.sound = GSound.Context()
@@ -54,6 +56,10 @@ class NotificationAgent:
             self._show_reminder(*test_reminder)
         else:
             self.connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            self.name_owner_id = Gio.bus_own_name_on_connection(
+                self.connection, AGENT_BUS_NAME, Gio.BusNameOwnerFlags.NONE,
+                None, None
+            )
             self.subscription_id = self.connection.signal_subscribe(
                 BUS_NAME,
                 BUS_INTERFACE,
@@ -71,6 +77,8 @@ class NotificationAgent:
             self._stop_sound_loop(window)
         if self.connection and self.subscription_id:
             self.connection.signal_unsubscribe(self.subscription_id)
+        if self.name_owner_id:
+            Gio.bus_unown_name(self.name_owner_id)
         self._log("Stopped")
 
     def _verbose_changed(self, settings, _key):
