@@ -447,8 +447,10 @@ class MainWindow(Gtk.Window):
     def _fill_calendar_box(self, box):
         for child in box.get_children():
             box.remove(child)
+
         calendars = self.store.list_calendars()
-        groups = [(_("Local"), "local", [c for c in calendars if c["provider"] == "local"])]
+        accounts = [(_("Local"), "local", [c for c in calendars if c["provider"] == "local"],
+                     None, None)]
         account_keys = []
         for cal in calendars:
             key = (cal["provider"], cal.get("account_id"))
@@ -464,75 +466,70 @@ class MainWindow(Gtk.Window):
             status = _("Online") if state.get("online") else _("Offline, read only")
             frequency = (_("Sync every 2 hours") if provider == "google"
                          else _("Sync every 15 minutes"))
-            label += f" — {status} — {frequency}"
-            groups.append((label, (provider, account_id),
-                           [c for c in calendars if c["provider"] == provider
-                            and c.get("account_id") == account_id]))
+            accounts.append((label, (provider, account_id),
+                             [c for c in calendars if c["provider"] == provider
+                              and c.get("account_id") == account_id], status, frequency))
 
-        for heading, group_id, items in groups:
-            group_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-            label = Gtk.Label(label=heading)
-            label.set_xalign(0)
-            label.set_hexpand(True)
-            label.get_style_context().add_class("clockenstein-section-label")
-            group_header.pack_start(label, True, True, 0)
-            if group_id != "local":
-                disconnect = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
-                disconnect.set_relief(Gtk.ReliefStyle.NONE)
-                disconnect.set_tooltip_text(_("Disconnect %s") % group_id[1])
-                disconnect.connect("clicked", self._disconnect_remote, group_id[0], group_id[1])
-                group_header.pack_end(disconnect, False, False, 0)
-            box.pack_start(group_header, False, False, 4)
-            if group_id != "local":
+        table = Gtk.Grid(column_spacing=16, row_spacing=4)
+        table.set_hexpand(True)
+        table.set_margin_top(4)
+        table.set_margin_bottom(4)
+        row = 0
+
+        headings = ("", _("Sync range"), _("Status"),
+                    _("Reminders"), _("Visible"), _("Actions"))
+        for column, heading in enumerate(headings):
+            label = Gtk.Label(label=heading, xalign=0.5)
+            label.get_style_context().add_class("dim-label")
+            label.get_style_context().add_class("clockenstein-calendar-heading")
+            if column == 0:
+                label.set_hexpand(True)
+            table.attach(label, column, row, 1, 1)
+        row += 1
+
+        for account_name, account_id, items, account_status, frequency in accounts:
+            if account_id != "local":
                 items = sorted(items, key=self._google_calendar_sort_key)
-            previous_section = None
-            calendar_grid = None
-            grid_row = 0
-            for cal in items:
-                if group_id != "local":
-                    section = _("My Calendars") if cal.get("writable", False) else _("Other Calendars")
-                    if section != previous_section:
-                        if cal["provider"] != "local":
-                            calendar_grid = Gtk.Grid(column_spacing=16, row_spacing=4)
-                            calendar_grid.set_hexpand(True)
-                            calendar_grid.set_margin_start(16)
-                            calendar_heading = Gtk.Label(label=section, xalign=0)
-                            status_heading = Gtk.Label(label=_("Status"), xalign=0)
-                            reminders_heading = Gtk.Label(label=_("Reminders"), xalign=0.5)
-                            visible_heading = Gtk.Label(label=_("Visible"), xalign=0.5)
-                            refresh_heading = Gtk.Label(label="", xalign=0.5)
-                            calendar_heading.set_hexpand(True)
-                            headings = [calendar_heading]
-                            if cal["provider"] == "google":
-                                range_heading = Gtk.Label(label=_("Sync range"), xalign=0)
-                                headings.append(range_heading)
-                            headings.extend((status_heading, reminders_heading,
-                                             visible_heading, refresh_heading))
-                            for heading_widget in headings:
-                                heading_widget.get_style_context().add_class("dim-label")
-                            calendar_grid.attach(calendar_heading, 0, 0, 1, 1)
-                            column = 1
-                            if cal["provider"] == "google":
-                                calendar_grid.attach(range_heading, column, 0, 1, 1)
-                                column += 1
-                            calendar_grid.attach(status_heading, column, 0, 1, 1)
-                            calendar_grid.attach(reminders_heading, column + 1, 0, 1, 1)
-                            calendar_grid.attach(visible_heading, column + 2, 0, 1, 1)
-                            calendar_grid.attach(refresh_heading, column + 3, 0, 1, 1)
-                            box.pack_start(calendar_grid, False, False, 0)
-                            grid_row = 1
-                        else:
-                            section_label = Gtk.Label(label=section)
-                            section_label.set_xalign(0)
-                            section_label.get_style_context().add_class(
-                                "clockenstein-calendar-subsection"
-                            )
-                            section_label.set_margin_start(16)
-                            box.pack_start(section_label, False, False, 2)
-                        previous_section = section
-                if cal["provider"] != "local":
+
+            account_label = Gtk.Label(label=account_name, xalign=0)
+            account_label.set_hexpand(True)
+            account_label.get_style_context().add_class("clockenstein-calendar-account")
+            table.attach(account_label, 0, row, 1, 1)
+            if account_status:
+                status_label = Gtk.Label(label=f"{account_status} · {frequency}", xalign=0)
+                status_label.get_style_context().add_class("clockenstein-calendar-account-status")
+                table.attach(status_label, 2, row, 1, 1)
+            if account_id != "local":
+                disconnect = Gtk.Button.new_from_icon_name(
+                    "window-close-symbolic", Gtk.IconSize.MENU
+                )
+                disconnect.set_relief(Gtk.ReliefStyle.NONE)
+                disconnect.set_tooltip_text(_("Disconnect %s") % account_id[1])
+                disconnect.connect("clicked", self._disconnect_remote,
+                                   account_id[0], account_id[1])
+                disconnect.set_halign(Gtk.Align.START)
+                table.attach(disconnect, 5, row, 1, 1)
+            row += 1
+
+            calendar_groups = [(_("Local calendars"), items)] if account_id == "local" else [
+                (_("My Calendars"), [cal for cal in items if cal.get("writable", False)]),
+                (_("Other Calendars"), [cal for cal in items if not cal.get("writable", False)]),
+            ]
+            for group_name, group_items in calendar_groups:
+                if not group_items:
+                    continue
+                group_label = Gtk.Label(label=group_name, xalign=0)
+                group_label.get_style_context().add_class("clockenstein-calendar-group")
+                table.attach(group_label, 0, row, 6, 1)
+                row += 1
+
+                for cal in group_items:
                     calendar_label = self._calendar_label(cal)
-                    status = Gtk.Label(label=self._calendar_sync_status_label(cal), xalign=0)
+                    calendar_label.set_margin_start(32)
+                    status = Gtk.Label(
+                        label=(self._calendar_sync_status_label(cal)
+                               if cal["provider"] != "local" else ""), xalign=0
+                    )
                     status.set_ellipsize(Pango.EllipsizeMode.END)
                     status.set_max_width_chars(32)
                     status.set_tooltip_text(self._calendar_sync_status_label(cal))
@@ -566,59 +563,48 @@ class MainWindow(Gtk.Window):
                         refresh.set_tooltip_text(_("Refresh this calendar"))
                     refresh.connect("clicked", self._refresh_calendar, cal)
                     row_widgets = [calendar_label, status, reminders, visibility, refresh]
-                    if cal["provider"] == "google":
-                        sync_range = Gtk.Label(label=self._google_sync_range_label(cal), xalign=0)
-                        sync_range.get_style_context().add_class("dim-label")
-                        row_widgets.append(sync_range)
+                    sync_range = Gtk.Label(
+                        label=(self._google_sync_range_label(cal)
+                               if cal["provider"] == "google" else ""), xalign=0
+                    )
+                    sync_range.get_style_context().add_class("dim-label")
+                    row_widgets.append(sync_range)
                     if not self._calendar_available(cal):
                         for widget in row_widgets:
                             widget.set_opacity(0.5)
                     if self._refreshing or cal.get("sync_range") == "too-big":
                         for widget in row_widgets:
                             widget.set_sensitive(False)
-                    calendar_grid.attach(calendar_label, 0, grid_row, 1, 1)
-                    column = 1
-                    if cal["provider"] == "google":
-                        calendar_grid.attach(sync_range, column, grid_row, 1, 1)
-                        column += 1
-                    calendar_grid.attach(status, column, grid_row, 1, 1)
-                    calendar_grid.attach(reminders, column + 1, grid_row, 1, 1)
-                    calendar_grid.attach(visibility, column + 2, grid_row, 1, 1)
-                    calendar_grid.attach(refresh, column + 3, grid_row, 1, 1)
-                    grid_row += 1
-                    continue
-                row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-                row_box.set_margin_start(16)
-                if cal["provider"] != "local" and not self._calendar_available(cal):
-                    row_box.set_opacity(0.5)
-                if cal["provider"] != "local" and self._refreshing:
-                    row_box.set_sensitive(False)
-                row_box.pack_start(self._calendar_label(cal), True, True, 0)
-                visibility = Gtk.Switch()
-                visibility.set_active(cal.get("visible", True))
-                visibility.set_valign(Gtk.Align.CENTER)
-                visibility.set_tooltip_text(_("Show this calendar"))
-                visibility.connect("notify::active", self._calendar_switch_toggled, cal)
-                row_box.pack_end(visibility, False, False, 0)
-                reminders = self._calendar_reminders_toggle(cal)
-                row_box.pack_end(reminders, False, False, 8)
-                reminders_label = Gtk.Label(label=_("Reminders"))
-                reminders_label.get_style_context().add_class("dim-label")
-                row_box.pack_end(reminders_label, False, False, 0)
-                if cal["provider"] == "local":
-                    edit = Gtk.Button.new_from_icon_name("document-edit-symbolic", Gtk.IconSize.MENU)
-                    edit.set_relief(Gtk.ReliefStyle.NONE)
-                    edit.set_tooltip_text(_("Edit"))
-                    edit.connect("clicked", self._edit_local_calendar, cal, box,
-                                 box.get_toplevel())
-                    row_box.pack_end(edit, False, False, 0)
-                    remove = Gtk.Button.new_from_icon_name("edit-delete-symbolic", Gtk.IconSize.MENU)
-                    remove.set_relief(Gtk.ReliefStyle.NONE)
-                    remove.set_tooltip_text(_("Remove"))
-                    remove.connect("clicked", self._remove_local_calendar, cal, box,
-                                   box.get_toplevel())
-                    row_box.pack_end(remove, False, False, 0)
-                box.pack_start(row_box, False, False, 0)
+                    actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
+                    actions.set_halign(Gtk.Align.START)
+                    if cal["provider"] == "local":
+                        edit = Gtk.Button.new_from_icon_name(
+                            "document-edit-symbolic", Gtk.IconSize.MENU
+                        )
+                        edit.set_relief(Gtk.ReliefStyle.NONE)
+                        edit.set_tooltip_text(_("Edit"))
+                        edit.connect("clicked", self._edit_local_calendar, cal, box,
+                                     box.get_toplevel())
+                        actions.pack_start(edit, False, False, 0)
+                        remove = Gtk.Button.new_from_icon_name(
+                            "edit-delete-symbolic", Gtk.IconSize.MENU
+                        )
+                        remove.set_relief(Gtk.ReliefStyle.NONE)
+                        remove.set_tooltip_text(_("Remove"))
+                        remove.connect("clicked", self._remove_local_calendar, cal, box,
+                                       box.get_toplevel())
+                        actions.pack_start(remove, False, False, 0)
+                    else:
+                        actions.pack_start(refresh, False, False, 0)
+
+                    table.attach(calendar_label, 0, row, 1, 1)
+                    table.attach(sync_range, 1, row, 1, 1)
+                    table.attach(status, 2, row, 1, 1)
+                    table.attach(reminders, 3, row, 1, 1)
+                    table.attach(visibility, 4, row, 1, 1)
+                    table.attach(actions, 5, row, 1, 1)
+                    row += 1
+        box.pack_start(table, False, False, 0)
         box.show_all()
 
     def _refresh_cooldown_finished(self, button, cal):

@@ -143,6 +143,25 @@
     margin-top: 4px;
     margin-left: 6px;
 }
+.clockenstein-calendar-heading {
+    font-size: 0.78em;
+    padding: 2px 0 5px;
+}
+.clockenstein-calendar-account {
+    font-weight: bold;
+    padding: 8px 0 2px;
+}
+.clockenstein-calendar-account-status {
+    color: @insensitive_fg_color;
+    font-size: 0.85em;
+    padding-top: 6px;
+}
+.clockenstein-calendar-group {
+    color: @insensitive_fg_color;
+    font-size: 0.78em;
+    font-weight: bold;
+    padding: 5px 0 1px 16px;
+}
 .clockenstein-status {
     font-size: 0.78em;
     color: @insensitive_fg_color;
