@@ -209,8 +209,7 @@ class ClockensteinDaemon:
         store = CalendarManager(self.timezone)
         return [self._event_tuple(event) for event in store.get_events(start, end)]
 
-    @staticmethod
-    def _event_tuple(event):
+    def _event_tuple(self, event):
         all_day = bool(event.get("all_day"))
         start_time = event.get("time_start") or datetime.time.min
         start = datetime.datetime.combine(event["date_start"], start_time, self.timezone)
