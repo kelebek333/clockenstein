@@ -88,11 +88,5 @@ class CalDAVBackendTests(unittest.TestCase):
         )
         self.assertNotIn("BEGIN:VALARM", _without_alarms(payload))
 
-    def test_plain_http_is_rejected(self):
-        """CalDAV refuses connections that could transmit credentials over HTTP."""
-        with self.assertRaises(CalDAVUnavailable):
-            CalDAVBackend._normalise_url("http://dav.example.test/")
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import json
+import uuid
 import caldav
 from pathlib import Path
 from urllib.parse import urlparse
@@ -19,6 +20,7 @@ class CalDAVUnavailable(RuntimeError):
 
 class CalDAVBackend:
     SECRET_SCHEMA = "org.x.clockenstein.CalDAV"
+    REQUEST_TIMEOUT_SECONDS = 20
 
     def __init__(self, data_dir: Path, timezone: datetime.tzinfo):
         self.timezone = timezone
@@ -254,7 +256,6 @@ class CalDAVBackend:
                        if e.get("calendar_id") == calendar_id and _cached_uid(e) == uid), None)
         if not cached or not cached.get("url"):
             return False
-        self._require_calendar(account_id, calendar_id)
         parent = self._require_calendar(account_id, calendar_id)
         caldav.Event(client=self._clients[account_id], parent=parent,
                     url=cached["url"]).delete()
@@ -296,11 +297,12 @@ class CalDAVBackend:
                                   "ical": _without_alarms(payload)})
         self._save()
 
-    @staticmethod
-    def _open(url, username, password):
+    @classmethod
+    def _open(cls, url, username, password):
         # Ubuntu 24.04 ships python-caldav 0.11, before the constructor gained
-        # its timeout keyword. Network work always runs outside the GTK thread.
+        # its timeout keyword. Its requests still use the timeout attribute.
         client = caldav.DAVClient(url=url, username=username, password=password)
+        client.timeout = cls.REQUEST_TIMEOUT_SECONDS
         return client, client.principal().calendars()
 
     @classmethod
@@ -356,8 +358,8 @@ class CalDAVBackend:
             raise CalDAVUnavailable(_("A server URL is required"))
         if not urlparse(url).scheme:
             url = "https://" + url
-        if urlparse(url).scheme != "https":
-            raise CalDAVUnavailable(_("CalDAV connections must use HTTPS"))
+        if urlparse(url).scheme not in ("http", "https"):
+            raise CalDAVUnavailable(_("CalDAV server URLs must use HTTP or HTTPS"))
         return url.rstrip("/") + "/"
 
     @staticmethod
@@ -384,8 +386,7 @@ def _event_ical(data, timezone: datetime.tzinfo, uid=None):
     calendar.add("prodid", "-//Clockenstein//EN")
     calendar.add("version", "2.0")
     event = Event()
-    event.add("uid", uid or data.get("uid") or hashlib.sha256(
-        f"{datetime.datetime.now().isoformat()}:{data.get('summary', '')}".encode()).hexdigest())
+    event.add("uid", uid or data.get("uid") or str(uuid.uuid4()))
     event.add("dtstamp", datetime.datetime.now(datetime.timezone.utc))
     _apply_data(event, data, timezone)
     calendar.add_component(event)
