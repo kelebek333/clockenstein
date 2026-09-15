@@ -29,8 +29,14 @@ install_data(
 
 install_data(
   'clockenstein/__init__.py',
-  'clockenstein/alarms.py',
   'clockenstein/formatting.py',
+  install_dir: join_paths(prefix, 'lib', 'python3', 'dist-packages', 'clockenstein'),
+)
+configure_file(
+  input: 'clockenstein/alarms.py',
+  output: 'alarms.py',
+  configuration: {'datadir': join_paths(prefix, datadir)},
+  install: true,
   install_dir: join_paths(prefix, 'lib', 'python3', 'dist-packages', 'clockenstein'),
 )
 install_data('data/notification.oga', install_dir: sounds_dir)

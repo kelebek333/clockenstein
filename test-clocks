@@ -1,8 +1,10 @@
 #!/bin/bash
+sed 's|@datadir@|/usr/share|' clockenstein/alarms.py > alarms.py.new
 sudo rm -rf /usr/share/clockenstein/clocks
 sudo cp -R clocks /usr/share/clockenstein/
 sudo rm -rf /usr/lib/python3/dist-packages/clockenstein
 sudo cp -R clockenstein /usr/lib/python3/dist-packages/
+sudo mv alarms.py.new /usr/lib/python3/dist-packages/clockenstein/alarms.py
 sudo mkdir -p /usr/share/clockenstein/sounds
 sudo cp data/notification.oga /usr/share/clockenstein/sounds/
 killall clockenstein-clocks 2>/dev/null

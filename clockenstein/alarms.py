@@ -4,7 +4,7 @@ import os
 import uuid
 from pathlib import Path
 
-DEFAULT_SOUND = "/usr/share/clockenstein/sounds/notification.oga"
+DEFAULT_SOUND = os.path.join("@datadir@", "clockenstein", "sounds", "notification.oga")
 
 def _data_dir():
     override = os.environ.get("CLOCKENSTEIN_DATA_DIR")
