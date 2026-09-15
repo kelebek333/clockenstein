@@ -62,6 +62,7 @@ class MainWindow(Gtk.Window):
         self._active_view = view_names.get(saved_view, "Month")
         self._refreshing = False
         self._service_running = {BUS_NAME: False, AGENT_BUS_NAME: False}
+        self.connect("destroy", self._save_window_size)
         self._build_ui()
         # Keep the monitor alive; otherwise it may be garbage-collected.
         self.timezone_monitor = watch_timezone_changes(self.timezone_changed)
@@ -147,7 +148,6 @@ class MainWindow(Gtk.Window):
 
     def _build_ui(self):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        vbox.connect("size-allocate", self._on_content_size_allocate)
         self.add(vbox)
         header = Gtk.HeaderBar()
         header.set_show_close_button(True)
@@ -1107,11 +1107,15 @@ class MainWindow(Gtk.Window):
         self.stack.set_visible_child_name(name)
         self._refresh(refresh_remote=False)
 
-    def _on_content_size_allocate(self, _widget, allocation):
+    def _save_window_size(self, _window):
         window = self.get_window()
-        if window and not (window.get_state() & Gdk.WindowState.MAXIMIZED):
-            self.settings.set_int("calendar-window-width", allocation.width)
-            self.settings.set_int("calendar-window-height", allocation.height)
+        if not window or window.get_state() & Gdk.WindowState.MAXIMIZED:
+            return
+        width, height = self.get_size()
+        if self.settings.get_int("calendar-window-width") != width:
+            self.settings.set_int("calendar-window-width", width)
+        if self.settings.get_int("calendar-window-height") != height:
+            self.settings.set_int("calendar-window-height", height)
 
     def _on_event_activated(self, event):
         dialog = EventDialog(self, store=self.store, event=event, time_format=self.time_format)
