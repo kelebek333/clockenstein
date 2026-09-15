@@ -19,6 +19,10 @@ Remote calendars are read-only when disconnected or offline.
 `clockenstein-daemon` runs in the background, syncs remote calendars, schedules
 event reminders, and emits them over D-Bus.
 
+Reminders are managed by Clockenstein, remote reminders are not supported.
+
+All-day events do not trigger reminders.
+
 The daemon:
 
 - writes to `.xsession-errors`.
