@@ -9,6 +9,7 @@ from xapp.util import l10n
 _ = l10n("clockenstein")
 
 from clockenstein.formatting import capitalize_first, ordered_weekday_names, start_of_week
+from clockenstein.drawing import draw_circle
 
 
 class MiniCalendar(Gtk.Box):
@@ -240,8 +241,6 @@ class _EventDots(Gtk.DrawingArea):
         for color in self.colors:
             rgba = Gdk.RGBA()
             rgba.parse(color)
-            Gdk.cairo_set_source_rgba(cr, rgba)
-            cr.arc(x + diameter / 2, 2, diameter / 2, 0, 6.283)
-            cr.fill()
+            draw_circle(cr, rgba, x + diameter / 2, 2, diameter / 2)
             x += diameter + gap
         return False

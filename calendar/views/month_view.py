@@ -9,6 +9,7 @@ from xapp.util import l10n
 _ = l10n("clockenstein")
 
 from clockenstein.formatting import format_time, ordered_weekday_names, start_of_week
+from clockenstein.drawing import draw_centered_circle
 from views.colors import apply_tinted_event_color
 
 EVENT_HEIGHT = 22
@@ -302,7 +303,7 @@ class _SpanPill(Gtk.EventBox):
             dot.set_valign(Gtk.Align.CENTER)
             rgba = Gdk.RGBA()
             rgba.parse(event.get("calendar_color", "#2aa198"))
-            dot.connect("draw", _draw_event_dot, rgba)
+            dot.connect("draw", draw_centered_circle, rgba)
             content.pack_start(dot, False, False, 0)
 
         label = Gtk.Label()
@@ -315,15 +316,6 @@ class _SpanPill(Gtk.EventBox):
         label.set_margin_end(4)
         content.pack_start(label, True, True, 0)
         self.add(content)
-
-
-def _draw_event_dot(widget, cr, color):
-    allocation = widget.get_allocation()
-    cr.set_source_rgba(color.red, color.green, color.blue, color.alpha)
-    cr.arc(allocation.width / 2, allocation.height / 2,
-           min(allocation.width, allocation.height) / 2, 0, 2 * 3.14159265)
-    cr.fill()
-    return False
 
 
 def _event_tooltip(event, time_format="locale"):

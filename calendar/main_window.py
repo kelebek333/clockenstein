@@ -14,6 +14,7 @@ from preferences import PreferencesDialog
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
 from clockenstein import (AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH,
                           SETTINGS_SCHEMA)
+from clockenstein.drawing import draw_centered_circle
 from clockenstein.formatting import (capitalize_first, format_time, resolve_first_weekday,
                         start_of_week)
 from dbus import notify_changed
@@ -427,7 +428,7 @@ class MainWindow(Gtk.Window):
             swatch.set_margin_top(4)
             rgba = Gdk.RGBA()
             rgba.parse(event.get("calendar_color", "#2aa198"))
-            swatch.connect("draw", _draw_calendar_swatch, rgba)
+            swatch.connect("draw", draw_centered_circle, rgba)
             content.pack_start(swatch, False, False, 0)
         labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         title = Gtk.Label(label=event.get("summary") or _("Untitled"), xalign=0)
@@ -677,7 +678,7 @@ class MainWindow(Gtk.Window):
         swatch.set_size_request(12, 12)
         rgba = Gdk.RGBA()
         rgba.parse(cal.get("color", "#2aa198"))
-        swatch.connect("draw", _draw_calendar_swatch, rgba)
+        swatch.connect("draw", draw_centered_circle, rgba)
         content.pack_start(swatch, False, False, 0)
         name = Gtk.Label(label=cal["name"])
         name.set_xalign(0)
@@ -1269,13 +1270,3 @@ class MainWindow(Gtk.Window):
 def _month_days(year, month):
     import calendar
     return calendar.monthrange(year, month)[1]
-
-
-def _draw_calendar_swatch(widget, cr, rgba):
-    width = widget.get_allocated_width()
-    height = widget.get_allocated_height()
-    radius = min(width, height) / 2
-    cr.set_source_rgba(rgba.red, rgba.green, rgba.blue, rgba.alpha)
-    cr.arc(width / 2, height / 2, radius, 0, 2 * 3.14159265)
-    cr.fill()
-    return False

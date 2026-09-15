@@ -29,6 +29,7 @@ install_data(
 
 install_data(
   'clockenstein/__init__.py',
+  'clockenstein/drawing.py',
   'clockenstein/formatting.py',
   install_dir: join_paths(prefix, 'lib', 'python3', 'dist-packages', 'clockenstein'),
 )

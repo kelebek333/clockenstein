@@ -18,6 +18,7 @@ from xapp.util import l10n
 from clockenstein import (AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH,
                           SETTINGS_SCHEMA)
 from clockenstein.alarms import DEFAULT_SOUND
+from clockenstein.drawing import draw_centered_circle
 
 _ = l10n("clockenstein")
 APPLICATION_NAME = _("Calendar Event")
@@ -530,20 +531,11 @@ def _calendar_detail_row(name, color):
     rgba = Gdk.RGBA()
     if not rgba.parse(color):
         rgba.parse("#2aa198")
-    swatch.connect("draw", _draw_calendar_swatch, rgba)
+    swatch.connect("draw", draw_centered_circle, rgba)
     row.pack_start(swatch, False, False, 0)
     label = Gtk.Label(label=name, xalign=0)
     row.pack_start(label, True, True, 0)
     return row
-
-
-def _draw_calendar_swatch(widget, cr, rgba):
-    allocation = widget.get_allocation()
-    radius = min(allocation.width, allocation.height) / 2
-    cr.arc(allocation.width / 2, allocation.height / 2, radius, 0, 2 * math.pi)
-    Gdk.cairo_set_source_rgba(cr, rgba)
-    cr.fill()
-    return False
 
 
 def _draw_calendar_accent(widget, cr, rgba):
