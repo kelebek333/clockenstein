@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import datetime
+import gettext
 import os
 import sys
 
@@ -80,13 +81,12 @@ def _next_alarm_label(alarms):
         return None
     minutes = max(1, int((next_trigger - now).total_seconds() + 59) // 60)
     hours, minutes = divmod(minutes, 60)
-    if not hours:
-        return _("Alarm in %(minutes)d minutes") % {"minutes": minutes}
-    if not minutes:
-        return _("Alarm in %(hours)d hours") % {"hours": hours}
-    return _("Alarm in %(hours)d hours %(minutes)d minutes") % {
-        "hours": hours, "minutes": minutes,
-    }
+    parts = []
+    if hours:
+        parts.append(gettext.ngettext("%d hour", "%d hours", hours) % hours)
+    if minutes:
+        parts.append(gettext.ngettext("%d minute", "%d minutes", minutes) % minutes)
+    return _("Alarm in %s") % " ".join(parts)
 
 
 class ClocksWindow(Gtk.ApplicationWindow):
