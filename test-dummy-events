@@ -1,0 +1,107 @@
+#!/usr/bin/python3
+import datetime
+import subprocess
+import sys
+import time
+import uuid
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+
+ROOT = Path(__file__).resolve().parent
+sys.path[:0] = [str(ROOT / "daemon"), str(ROOT / "calendar")]
+
+from alarms import AlarmStore
+from store import CalendarManager
+
+
+BUS_NAME = "org.x.clockenstein.Calendar.Service"
+BUS_PATH = "/org/x/clockenstein/Calendar/Service"
+BUS_INTERFACE = "org.x.clockenstein.Calendar.Service"
+
+
+def deploy_services():
+    subprocess.run(
+        ["sudo", "rm", "-rf", "/usr/share/clockenstein/daemon"], check=True
+    )
+    subprocess.run(
+        ["sudo", "rm", "-rf", "/usr/share/clockenstein/agent"], check=True
+    )
+    subprocess.run(
+        ["sudo", "cp", "-R", "daemon", "agent", "/usr/share/clockenstein/"],
+        cwd=ROOT, check=True,
+    )
+    subprocess.run(
+        ["sudo", "cp", "data/notification.oga", "/usr/share/clockenstein/agent/"],
+        cwd=ROOT, check=True,
+    )
+    for service in ("clockenstein-daemon.service",
+                    "clockenstein-notification-agent.service"):
+        subprocess.run(["systemctl", "--user", "restart", service], check=True)
+
+
+def daemon_ready():
+    connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    for _attempt in range(50):
+        result = connection.call_sync(
+            "org.freedesktop.DBus", "/org/freedesktop/DBus",
+            "org.freedesktop.DBus", "NameHasOwner", GLib.Variant("(s)", (BUS_NAME,)),
+            GLib.VariantType.new("(b)"), Gio.DBusCallFlags.NONE, 1000, None,
+        )
+        if result.unpack()[0]:
+            return
+        time.sleep(0.1)
+    raise SystemExit("The Clockenstein daemon did not start.")
+
+
+def notify_daemon(method):
+    try:
+        connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        connection.call_sync(
+            BUS_NAME, BUS_PATH, BUS_INTERFACE, method, None, None,
+            Gio.DBusCallFlags.NONE, 1000, None,
+        )
+    except GLib.Error as error:
+        raise SystemExit(f"Could not contact the Clockenstein daemon: {error.message}")
+
+def create_alarm(timezone, trigger):
+    AlarmStore().create({
+        "time": trigger.strftime("%H:%M"),
+        "date": trigger.date().isoformat(),
+        "label": "Test alarm",
+        "sound_interval": 3,
+    })
+    notify_daemon("NotifyAlarmsChanged")
+
+
+def create_reminder(timezone, trigger):
+    lead_minutes = Gio.Settings.new("org.x.clockenstein.daemon").get_uint(
+        "notification-minutes"
+    )
+    start = trigger + datetime.timedelta(minutes=lead_minutes)
+    CalendarManager(timezone).create_event({
+        "uid": f"test-reminder-{uuid.uuid4()}",
+        "summary": "Test reminder",
+        "description": "Created by ./test-dummy-event",
+        "all_day": False,
+        "date_start": start.date(),
+        "date_end": start.date(),
+        "time_start": start.time().replace(tzinfo=None),
+        "time_end": (start + datetime.timedelta(hours=1)).time().replace(tzinfo=None),
+    })
+    notify_daemon("NotifyChanged")
+
+deploy_services()
+daemon_ready()
+timezone = ZoneInfo(GLib.TimeZone.new_local().get_identifier())
+now = datetime.datetime.now(timezone)
+trigger = now.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
+create_alarm(timezone, trigger)
+create_reminder(timezone, trigger)
+
+print(f"Test events scheduled for {trigger.strftime('%H:%M')}.")
