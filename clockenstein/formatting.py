@@ -1,7 +1,8 @@
 import datetime
 import locale
 import re
-import subprocess
+
+import babel.core
 
 from xapp.util import l10n
 
@@ -13,17 +14,9 @@ WEEKDAY_NAMES = (_("MON"), _("TUE"), _("WED"), _("THU"), _("FRI"), _("SAT"), _("
 def locale_first_weekday():
     """Return the locale's first weekday using Python's Monday-based index."""
     try:
-        output = subprocess.check_output(
-            ["locale", "-k", "first_weekday", "week-1stday"],
-            text=True, stderr=subprocess.DEVNULL,
-        )
-        values = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
-        first_weekday = int(values["first_weekday"].strip('"'))
-        week_origin = datetime.datetime.strptime(
-            values["week-1stday"].strip('"'), "%Y%m%d"
-        ).date()
-        return (week_origin.weekday() + first_weekday - 1) % 7
-    except (KeyError, OSError, subprocess.SubprocessError, ValueError):
+        locale_name = babel.core.default_locale(("LC_ALL", "LC_TIME", "LANG"))
+        return babel.core.Locale.parse(locale_name).first_week_day
+    except (babel.core.UnknownLocaleError, TypeError, ValueError):
         return 0
 
 
