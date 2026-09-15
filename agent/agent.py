@@ -19,19 +19,18 @@ from clockenstein import (AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH,
                           DEFAULT_COLOR, SETTINGS_SCHEMA)
 from clockenstein.alarms import DEFAULT_SOUND
 from clockenstein.drawing import draw_centered_circle
+from clockenstein.logging import Logger
 
 _ = l10n("clockenstein")
 APPLICATION_NAME = _("Calendar Event")
 
-VERBOSE_KEY = "verbose"
 ALARM_SOUND = DEFAULT_SOUND
 
 
 class NotificationAgent:
     def __init__(self):
         self.settings = Gio.Settings.new(SETTINGS_SCHEMA)
-        self.verbose = self.settings.get_boolean(VERBOSE_KEY)
-        self.settings.connect(f"changed::{VERBOSE_KEY}", self._verbose_changed)
+        self.logger = Logger(self.settings, "clockenstein-notification-agent")
         self.connection = None
         self.subscription_id = 0
         self.alarm_subscription_id = 0
@@ -45,7 +44,7 @@ class NotificationAgent:
         GLib.set_application_name(APPLICATION_NAME)
         Gtk.init(None)
         Gtk.Window.set_default_icon_name("clockenstein-calendar")
-        self._log("Starting")
+        self.logger.log("Starting")
         self.sound.init(None)
         if test_reminder:
             self._show_reminder(*test_reminder)
@@ -68,7 +67,7 @@ class NotificationAgent:
                 BUS_NAME, BUS_INTERFACE, "Alarm", BUS_PATH, None,
                 Gio.DBusSignalFlags.NONE, self._alarm_received,
             )
-            self._log("Listening for reminders")
+            self.logger.log("Listening for reminders")
         signal.signal(signal.SIGINT, lambda _signum, _frame: Gtk.main_quit())
         signal.signal(signal.SIGTERM, lambda _signum, _frame: Gtk.main_quit())
         Gtk.main()
@@ -80,22 +79,13 @@ class NotificationAgent:
             self.connection.signal_unsubscribe(self.alarm_subscription_id)
         if self.name_owner_id:
             Gio.bus_unown_name(self.name_owner_id)
-        self._log("Stopped")
-
-    def _verbose_changed(self, settings, _key):
-        verbose = settings.get_boolean(VERBOSE_KEY)
-        if verbose:
-            self.verbose = True
-            self._log("Verbose logging enabled")
-        else:
-            self._log("Verbose logging disabled")
-            self.verbose = False
+        self.logger.log("Stopped")
 
     def _reminder_received(self, _connection, _sender, _path, _interface,
                            _signal, parameters):
         (uid, summary, location, description, calendar_name, calendar_color,
          start_timestamp, all_day) = parameters.unpack()
-        self._log(f"Received reminder for {uid}")
+        self.logger.log(f"Received reminder for {uid}")
         self._show_reminder(
             uid, summary or APPLICATION_NAME, start_timestamp, location, description,
             calendar_name, calendar_color
@@ -104,7 +94,7 @@ class NotificationAgent:
     def _alarm_received(self, _connection, _sender, _path, _interface,
                         _signal, parameters):
         alarm_id, label, trigger, sound_file, sound_interval = parameters.unpack()
-        self._log(f"Received alarm for {alarm_id}")
+        self.logger.log(f"Received alarm for {alarm_id}")
         self._show_alarm(alarm_id, label or _("Alarm"), trigger, sound_file,
                          sound_interval)
 
@@ -306,7 +296,7 @@ class NotificationAgent:
         self._present_window(window)
         self._update_relative_time(window)
         self._start_sound_loop(window, uid)
-        self._log(f"Showing reminder window for {uid}")
+        self.logger.log(f"Showing reminder window for {uid}")
         return GLib.SOURCE_REMOVE
 
     def _window_destroyed(self, window):
@@ -315,13 +305,13 @@ class NotificationAgent:
             window.relative_timer_id = 0
         self._stop_sound_loop(window)
         self.windows.discard(window)
-        self._log(f"Dismissed reminder for {window.reminder_uid}")
+        self.logger.log(f"Dismissed reminder for {window.reminder_uid}")
 
     def _dismiss(self, _button, window):
         window.destroy()
 
     def _snooze(self, _item, window, minutes):
-        self._log(f"Snoozed reminder for {window.reminder_uid} for {minutes} minute(s)")
+        self.logger.log(f"Snoozed reminder for {window.reminder_uid} for {minutes} minute(s)")
         self._stop_sound_loop(window)
         window.hide()
         GLib.timeout_add_seconds(minutes * 60, self._wake_snoozed, window,
@@ -329,7 +319,7 @@ class NotificationAgent:
 
     def _wake_snoozed(self, window, uid):
         if window in self.windows:
-            self._log(f"Showing snoozed reminder for {uid}")
+            self.logger.log(f"Showing snoozed reminder for {uid}")
             self._present_window(window)
             self._start_sound_loop(window, uid, window.sound_file,
                                    window.sound_interval, window.sound_limit)
@@ -357,32 +347,32 @@ class NotificationAgent:
 
     def _open_calendar(self, _item, start_timestamp, uid):
         event_date = datetime.datetime.fromtimestamp(start_timestamp).date().isoformat()
-        self._log(f"Opening calendar on {event_date} for {uid}")
+        self.logger.log(f"Opening calendar on {event_date} for {uid}")
         try:
             Gio.Subprocess.new(
                 ["clockenstein-calendar", "--date", event_date],
                 Gio.SubprocessFlags.NONE,
             )
         except GLib.Error as exc:
-            self._log(f"Could not open calendar: {exc.message}")
+            self.logger.error(f"Could not open calendar: {exc.message}")
 
     def _open_clocks(self, _button):
         try:
             Gio.Subprocess.new(["clockenstein-clocks"], Gio.SubprocessFlags.NONE)
         except GLib.Error as exc:
-            self._log(f"Could not open Clocks: {exc.message}")
+            self.logger.error(f"Could not open Clocks: {exc.message}")
 
     def _mute_toggled(self, item, window):
         window.muted = item.get_active()
         if window.muted:
             self._stop_sound_loop(window)
-            self._log(f"Muted reminder sound for {window.reminder_uid}")
+            self.logger.log(f"Muted reminder sound for {window.reminder_uid}")
         elif window.get_visible():
             self._start_sound_loop(
                 window, window.reminder_uid, window.sound_file,
                 window.sound_interval, window.sound_limit,
             )
-            self._log(f"Unmuted reminder sound for {window.reminder_uid}")
+            self.logger.log(f"Unmuted reminder sound for {window.reminder_uid}")
 
     def _start_sound_loop(self, window, uid, sound_file=ALARM_SOUND,
                           sound_interval=3, sound_limit=2 * 60):
@@ -390,7 +380,7 @@ class NotificationAgent:
         if window.muted:
             return
         if not os.path.exists(sound_file):
-            self._log(f"Alarm sound not found: {sound_file}")
+            self.logger.warning(f"Alarm sound not found: {sound_file}")
             return
         cancellable = Gio.Cancellable()
         timeout_id = GLib.timeout_add_seconds(sound_limit, self._sound_limit, window, uid)
@@ -404,7 +394,7 @@ class NotificationAgent:
             "sound_limit": sound_limit,
         }
         self._play_sound_iteration(window)
-        self._log(f"Started alarm sound loop for {uid}")
+        self.logger.log(f"Started alarm sound loop for {uid}")
 
     def _play_sound_iteration(self, window):
         state = self.sound_loops.get(window)
@@ -425,7 +415,7 @@ class NotificationAgent:
             )
         except GLib.Error as exc:
             self._stop_sound_icon(window)
-            self._log(f"Could not play alarm sound: {exc.message}")
+            self.logger.error(f"Could not play alarm sound: {exc.message}")
 
     def _sound_finished(self, context, result, window):
         self._stop_sound_icon(window)
@@ -434,7 +424,7 @@ class NotificationAgent:
         except GLib.Error as exc:
             state = self.sound_loops.get(window)
             if state is not None and not state["cancellable"].is_cancelled():
-                self._log(f"Could not play alarm sound: {exc.message}")
+                self.logger.error(f"Could not play alarm sound: {exc.message}")
             return
         state = self.sound_loops.get(window)
         if state is not None:
@@ -487,13 +477,8 @@ class NotificationAgent:
         state = self._clear_sound_loop(window)
         if state is not None:
             minutes = state["sound_limit"] // 60
-            self._log(f"Stopped alarm sound for {uid} after {minutes} minutes")
+            self.logger.log(f"Stopped alarm sound for {uid} after {minutes} minutes")
         return GLib.SOURCE_REMOVE
-
-    def _log(self, message):
-        if self.verbose:
-            print(f"clockenstein-notification-agent: {message}", flush=True)
-
 
 def _detail_row(icon_name, text, prominent=False, dim=False, max_lines=0):
     row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
