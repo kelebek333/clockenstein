@@ -120,9 +120,10 @@ class EventDialog(Gtk.Dialog):
         self.set_default_size(420, -1)
         self.add_button(_("Cancel") if editable else _("Close"), Gtk.ResponseType.CANCEL)
         if not is_new and editable:
-            del_btn = self.add_button(_("Delete"), Gtk.ResponseType.REJECT)
+            del_btn = Gtk.Button.new_with_label(_("Delete"))
             del_btn.get_style_context().add_class("destructive-action")
             del_btn.connect("clicked", self._on_delete)
+            self.get_action_area().pack_start(del_btn, False, False, 0)
         if editable:
             save_btn = self.add_button(_("Save"), Gtk.ResponseType.OK)
             save_btn.get_style_context().add_class("suggested-action")
