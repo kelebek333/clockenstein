@@ -2,7 +2,8 @@
 
 xgettext --language=Desktop \
     --output=clockenstein.pot \
-    data/org.x.clockenstein.Calendar.desktop.in
+    data/org.x.clockenstein.Calendar.desktop.in \
+    data/org.x.clockenstein.Clocks.desktop.in
 
 xgettext --language=Python \
     --join-existing \
@@ -10,4 +11,5 @@ xgettext --language=Python \
     --keyword=_ \
     --keyword=N_ \
     --output=clockenstein.pot \
-    calendar/*.py calendar/backends/*.py calendar/views/*.py agent/*.py
+    calendar/*.py calendar/backends/*.py calendar/views/*.py calendar/widgets/*.py \
+    clocks/*.py daemon/*.py agent/*.py clockenstein/*.py

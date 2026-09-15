@@ -12,9 +12,11 @@ _ = l10n("clockenstein")
 from event_dialog import EventDialog
 from preferences import PreferencesDialog
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
-from dbus import AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH, notify_changed
-from formatting import (capitalize_first, format_time, resolve_first_weekday,
+from clockenstein import (AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH,
+                          SETTINGS_SCHEMA)
+from clockenstein.formatting import (capitalize_first, format_time, resolve_first_weekday,
                         start_of_week)
+from dbus import notify_changed
 from store import CalendarManager, watch_timezone_changes
 from views.colors import apply_tinted_event_color
 from views.month_view import MonthView
@@ -28,7 +30,7 @@ class MainWindow(Gtk.Window):
         super().__init__(title=_("Calendar"))
         self.refresh_timezone()
         self.store = CalendarManager(self.timezone)
-        self.settings = Gio.Settings.new("org.x.clockenstein.calendar")
+        self.settings = Gio.Settings.new(SETTINGS_SCHEMA)
         self.first_weekday = resolve_first_weekday(
             self.settings.get_string("first-day-of-week")
         )
@@ -37,8 +39,8 @@ class MainWindow(Gtk.Window):
             "changed::first-day-of-week", self._first_weekday_changed
         )
         self.settings.connect("changed::time-format", self._time_format_changed)
-        width = self.settings.get_int("window-width")
-        height = self.settings.get_int("window-height")
+        width = self.settings.get_int("calendar-window-width")
+        height = self.settings.get_int("calendar-window-height")
         self.set_default_size(width, height)
         self.set_position(Gtk.WindowPosition.CENTER)
         self.set_icon_name("clockenstein-calendar")
@@ -49,7 +51,7 @@ class MainWindow(Gtk.Window):
         self._month_week_offset = 0
         self._month_scroll_delta = 0
         self._calendar_dialog_box = None
-        saved_view = self.settings.get_string("default-view")
+        saved_view = self.settings.get_string("calendar-default-view")
         view_names = {"month": "Month", "week": "Week", "day": "Day"}
         self._active_view = view_names.get(saved_view, "Month")
         self._refreshing = False
@@ -1095,15 +1097,15 @@ class MainWindow(Gtk.Window):
                 other.set_active(False)
                 other.handler_unblock_by_func(self._on_view_toggle)
         self._active_view = name
-        self.settings.set_string("default-view", name.lower())
+        self.settings.set_string("calendar-default-view", name.lower())
         self.stack.set_visible_child_name(name)
         self._refresh(refresh_remote=False)
 
     def _on_content_size_allocate(self, _widget, allocation):
         window = self.get_window()
         if window and not (window.get_state() & Gdk.WindowState.MAXIMIZED):
-            self.settings.set_int("window-width", allocation.width)
-            self.settings.set_int("window-height", allocation.height)
+            self.settings.set_int("calendar-window-width", allocation.width)
+            self.settings.set_int("calendar-window-height", allocation.height)
 
     def _on_event_activated(self, event):
         dialog = EventDialog(self, store=self.store, event=event, time_format=self.time_format)

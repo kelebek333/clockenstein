@@ -17,8 +17,8 @@ CALENDAR_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "calenda
 sys.path.insert(0, CALENDAR_DIR)
 sys.path.insert(0, os.path.dirname(__file__))
 
-from dbus import BUS_INTERFACE, BUS_NAME, BUS_PATH
-from alarms import AlarmStore, due_alarms
+from clockenstein import BUS_INTERFACE, BUS_NAME, BUS_PATH, SETTINGS_SCHEMA
+from clockenstein.alarms import AlarmStore, due_alarms
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
 from store import CalendarManager, watch_timezone_changes
 
@@ -26,9 +26,8 @@ CALDAV_REFRESH_INTERVAL_SECONDS = 15 * 60
 GOOGLE_REFRESH_INTERVAL_SECONDS = 2 * 60 * 60
 GOOGLE_REFRESH_EVERY = GOOGLE_REFRESH_INTERVAL_SECONDS // CALDAV_REFRESH_INTERVAL_SECONDS
 REMINDER_CHECK_INTERVAL_SECONDS = 30
-SETTINGS_SCHEMA = "org.x.clockenstein.daemon"
 VERBOSE_KEY = "verbose"
-NOTIFICATION_MINUTES_KEY = "notification-minutes"
+REMINDER_MINUTES_KEY = "reminder-minutes"
 VERSION = "__PROJECT_VERSION__"
 
 INTERFACE_XML = f"""
@@ -261,7 +260,7 @@ class ClockensteinDaemon:
         since = self.last_reminder_check or now
         self.last_reminder_check = now
         try:
-            minutes = self.settings.get_uint(NOTIFICATION_MINUTES_KEY)
+            minutes = self.settings.get_uint(REMINDER_MINUTES_KEY)
             events = [event for event in self.reminder_events
                       if event.get("reminders", True)]
             for event in _due_notifications(events, since, now, minutes, self.timezone):

@@ -54,8 +54,6 @@ def format_time(value, time_format="locale"):
         return value.strftime("%H:%M")
     else:
         fmt = locale.nl_langinfo(locale.T_FMT)
-        # Expand composite directives so their seconds can be removed as well.
         fmt = fmt.replace("%T", "%H:%M:%S").replace("%r", "%I:%M:%S %p")
-        # %S, %OS, or %ES, including the separator before seconds.
         fmt = re.sub(r"([^\w%]?)%(?:E|O)?S", "", fmt)
         return value.strftime(re.sub(r"\s+", " ", fmt).strip()).strip()

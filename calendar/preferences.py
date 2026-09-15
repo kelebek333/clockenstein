@@ -7,7 +7,7 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import capitalize_first
+from clockenstein.formatting import capitalize_first
 
 
 class PreferencesDialog(Gtk.Dialog):

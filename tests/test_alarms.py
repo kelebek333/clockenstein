@@ -1,16 +1,9 @@
 import datetime
-import importlib.util
 import tempfile
 import unittest
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
-
-SPEC = importlib.util.spec_from_file_location(
-    "clockenstein_alarms", Path(__file__).parents[1] / "daemon" / "alarms.py"
-)
-ALARMS = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(ALARMS)
+from clockenstein import alarms as ALARMS
 
 
 class AlarmTests(unittest.TestCase):

@@ -6,11 +6,11 @@ from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("clockenstein_daemon", ROOT / "daemon" / "main.py")
+SPEC = importlib.util.spec_from_file_location("clockenstein_daemon", ROOT / "daemon" / "daemon.py")
 DAEMON = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(DAEMON)
 AGENT_SPEC = importlib.util.spec_from_file_location(
-    "clockenstein_notification_agent", ROOT / "agent" / "main.py"
+    "clockenstein_notification_agent", ROOT / "agent" / "agent.py"
 )
 AGENT = importlib.util.module_from_spec(AGENT_SPEC)
 AGENT_SPEC.loader.exec_module(AGENT)

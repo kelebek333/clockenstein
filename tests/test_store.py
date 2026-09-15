@@ -123,18 +123,6 @@ class LocalStoreTests(unittest.TestCase):
         self.assertEqual([event["summary"] for event in events], ["Conference"])
         self.assertEqual(events[0]["date_end"], datetime.date(2026, 8, 23))
 
-    def test_legacy_calendar_is_copied_into_personal(self):
-        """A legacy calendar is copied into Personal without deleting its source."""
-        legacy_root = Path(self.temp.name) / "legacy"
-        legacy_root.mkdir()
-        original = self.store._new_calendar().to_ical()
-        (legacy_root / "calendar.ics").write_bytes(original)
-        migrated = LocalStore(UTC, legacy_root)
-        self.assertEqual((legacy_root / "calendar.ics").read_bytes(), original)
-        self.assertTrue((legacy_root / "calendars" / "personal.ics").exists())
-        self.assertEqual(migrated.list_calendars()[0]["name"], "Personal")
-
-
 class GoogleMappingTests(unittest.TestCase):
     def test_google_event_move_precedes_patch(self):
         calls = []

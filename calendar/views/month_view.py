@@ -8,7 +8,7 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import format_time, ordered_weekday_names, start_of_week
+from clockenstein.formatting import format_time, ordered_weekday_names, start_of_week
 from views.colors import apply_tinted_event_color
 
 EVENT_HEIGHT = 22

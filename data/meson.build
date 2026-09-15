@@ -2,14 +2,13 @@ i18n = import('i18n')
 gnome = import('gnome')
 
 install_data(
-  'org.x.clockenstein.calendar.gschema.xml',
-  'org.x.clockenstein.daemon.gschema.xml',
+  'org.x.clockenstein.gschema.xml',
   install_dir: join_paths(get_option('datadir'), 'glib-2.0', 'schemas'),
 )
 
 install_data(
   'clockenstein-calendar.svg',
-  'clockenstein-clock.svg',
+  'clockenstein-clocks.svg',
   install_dir: join_paths(get_option('datadir'), 'icons', 'hicolor', 'scalable', 'apps'),
 )
 

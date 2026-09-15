@@ -22,7 +22,7 @@ event reminders, and emits them over D-Bus.
 The daemon:
 
 - writes to `.xsession-errors`.
-- becomes verbose if the `gsettings` key `org.x.clockenstein.daemon verbose` is set to `true`
+- becomes verbose if the `gsettings` key `org.x.clockenstein verbose` is set to `true`
 - is restarted on package updates (this is done in `debian/postinst`)
 - handles all interactions with remote (Google, Caldav) servers except for CRUD operations and accounts setup (which are handled by the client)
 - syncs remote events on startup and then on a regular basis

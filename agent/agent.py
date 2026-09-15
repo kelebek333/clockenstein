@@ -15,17 +15,15 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, Gio, GLib, GSound, Gtk, Pango
 from xapp.threading import run_idle
 from xapp.util import l10n
+from clockenstein import (AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH,
+                          SETTINGS_SCHEMA)
+from clockenstein.alarms import DEFAULT_SOUND
 
 _ = l10n("clockenstein")
 APPLICATION_NAME = _("Calendar Event")
 
-BUS_NAME = "org.x.clockenstein.Calendar.Service"
-BUS_PATH = "/org/x/clockenstein/Calendar/Service"
-BUS_INTERFACE = "org.x.clockenstein.Calendar.Service"
-AGENT_BUS_NAME = "org.x.clockenstein.Calendar.NotificationAgent"
-SETTINGS_SCHEMA = "org.x.clockenstein.daemon"
 VERBOSE_KEY = "verbose"
-ALARM_SOUND = os.path.join(os.path.dirname(__file__), "notification.oga")
+ALARM_SOUND = DEFAULT_SOUND
 
 
 class NotificationAgent:
@@ -104,9 +102,7 @@ class NotificationAgent:
 
     def _alarm_received(self, _connection, _sender, _path, _interface,
                         _signal, parameters):
-        values = parameters.unpack()
-        alarm_id, label, trigger, sound_file = values[:4]
-        sound_interval = values[4] if len(values) > 4 else 3
+        alarm_id, label, trigger, sound_file, sound_interval = parameters.unpack()
         self._log(f"Received alarm for {alarm_id}")
         self._show_alarm(alarm_id, label or _("Alarm"), trigger, sound_file,
                          sound_interval)
@@ -124,7 +120,7 @@ class NotificationAgent:
         window.set_position(Gtk.WindowPosition.CENTER)
         window.set_urgency_hint(True)
         window.set_keep_above(True)
-        window.set_icon_name("clockenstein-clock")
+        window.set_icon_name("clockenstein-clocks")
 
         header = Gtk.HeaderBar()
         header.set_show_close_button(False)
@@ -241,6 +237,7 @@ class NotificationAgent:
         window = Gtk.Window(title=APPLICATION_NAME)
         window.reminder_uid = uid
         window.sound_file = ALARM_SOUND
+        window.sound_interval = 3
         window.sound_limit = 2 * 60
         window.muted = False
         window.set_default_size(420, -1)
@@ -402,8 +399,7 @@ class NotificationAgent:
             self._log(f"Showing snoozed reminder for {uid}")
             self._present_window(window)
             self._start_sound_loop(window, uid, window.sound_file,
-                                   getattr(window, "sound_interval", 3),
-                                   getattr(window, "sound_limit", 2 * 60))
+                                   window.sound_interval, window.sound_limit)
         return GLib.SOURCE_REMOVE
 
     def _present_window(self, window):
@@ -488,8 +484,7 @@ class NotificationAgent:
         elif window.get_visible():
             self._start_sound_loop(
                 window, window.reminder_uid, window.sound_file,
-                getattr(window, "sound_interval", 3),
-                getattr(window, "sound_limit", 2 * 60),
+                window.sound_interval, window.sound_limit,
             )
             self._log(f"Unmuted reminder sound for {window.reminder_uid}")
 

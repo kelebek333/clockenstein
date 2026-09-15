@@ -1,9 +1,6 @@
 from gi.repository import Gio, GLib
 
-BUS_NAME = "org.x.clockenstein.Calendar.Service"
-BUS_PATH = "/org/x/clockenstein/Calendar/Service"
-BUS_INTERFACE = "org.x.clockenstein.Calendar.Service"
-AGENT_BUS_NAME = "org.x.clockenstein.Calendar.NotificationAgent"
+from clockenstein import BUS_INTERFACE, BUS_NAME, BUS_PATH
 
 
 def notify_changed():

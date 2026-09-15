@@ -4,22 +4,22 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "calendar"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from formatting import format_time
+from clockenstein.formatting import format_time
 
 
 class TimeFormattingTests(unittest.TestCase):
     def test_locale_time_format_removes_seconds_and_its_separator(self):
-        with patch("formatting.locale.nl_langinfo", return_value="%I:%M:%S %p"):
+        with patch("clockenstein.formatting.locale.nl_langinfo", return_value="%I:%M:%S %p"):
             self.assertEqual(format_time(datetime.time(13, 5, 42)), "01:05 PM")
 
     def test_locale_time_format_removes_alternative_seconds(self):
-        with patch("formatting.locale.nl_langinfo", return_value="%H.%M.%OS"):
+        with patch("clockenstein.formatting.locale.nl_langinfo", return_value="%H.%M.%OS"):
             self.assertEqual(format_time(datetime.time(13, 5, 42)), "13.05")
 
     def test_locale_time_format_expands_composite_directives(self):
-        with patch("formatting.locale.nl_langinfo", return_value="%r"):
+        with patch("clockenstein.formatting.locale.nl_langinfo", return_value="%r"):
             self.assertEqual(format_time(datetime.time(13, 5, 42)), "01:05 PM")
 
     def test_forced_clock_formats_omit_seconds(self):

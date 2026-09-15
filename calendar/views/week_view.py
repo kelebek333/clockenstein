@@ -8,7 +8,7 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import WEEKDAY_NAMES, format_time, start_of_week
+from clockenstein.formatting import WEEKDAY_NAMES, format_time, start_of_week
 from views.colors import apply_tinted_event_color
 from views.month_view import _event_has_ended, _event_tooltip
 from views.day_view import (ALL_DAY_EVENT_MARGIN, ALL_DAY_HEIGHT,

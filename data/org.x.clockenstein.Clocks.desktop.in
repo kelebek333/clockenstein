@@ -2,7 +2,7 @@
 Name=Clocks
 Comment=Set alarms
 Exec=clockenstein-clocks
-Icon=clockenstein-clock
+Icon=clockenstein-clocks
 Terminal=false
 Type=Application
 Categories=Utility;Clock;

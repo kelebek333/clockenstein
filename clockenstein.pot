@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-14 17:34+0100\n"
+"POT-Creation-Date: 2026-09-15 14:48+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -20,7 +20,7 @@ msgstr ""
 
 #: data/org.x.clockenstein.Calendar.desktop.in:2 calendar/event_dialog.py:179
 #: calendar/event_dialog.py:186 calendar/main.py:74 calendar/main_window.py:28
-#: calendar/main_window.py:146 calendar/store.py:99 calendar/store.py:124
+#: calendar/main_window.py:146 calendar/store.py:88 calendar/store.py:113
 #: calendar/backends/caldav.py:103 calendar/backends/caldav.py:154
 #: calendar/backends/caldav.py:341 calendar/backends/caldav.py:343
 msgid "Calendar"
@@ -157,34 +157,6 @@ msgstr ""
 
 #: calendar/event_dialog.py:417
 msgid "This event will be permanently deleted."
-msgstr ""
-
-#: calendar/formatting.py:10
-msgid "MON"
-msgstr ""
-
-#: calendar/formatting.py:10
-msgid "TUE"
-msgstr ""
-
-#: calendar/formatting.py:10
-msgid "WED"
-msgstr ""
-
-#: calendar/formatting.py:10
-msgid "THU"
-msgstr ""
-
-#: calendar/formatting.py:10
-msgid "FRI"
-msgstr ""
-
-#: calendar/formatting.py:10
-msgid "SAT"
-msgstr ""
-
-#: calendar/formatting.py:10
-msgid "SUN"
 msgstr ""
 
 #: calendar/main.py:49
@@ -422,7 +394,7 @@ msgstr ""
 msgid "Color"
 msgstr ""
 
-#: calendar/main_window.py:774 calendar/store.py:131
+#: calendar/main_window.py:774 calendar/store.py:120
 msgid "At least one local calendar is required"
 msgstr ""
 
@@ -540,21 +512,21 @@ msgstr ""
 msgid "24-hour clock"
 msgstr ""
 
-#: calendar/store.py:58 calendar/store.py:72
+#: calendar/store.py:53 calendar/store.py:61
 msgid "Personal"
 msgstr ""
 
-#: calendar/store.py:123 calendar/store.py:135
+#: calendar/store.py:112 calendar/store.py:124
 #, python-format
 msgid "Unknown calendar %s"
 msgstr ""
 
-#: calendar/store.py:213
+#: calendar/store.py:202
 #, python-format
 msgid "Unknown event %s"
 msgstr ""
 
-#: calendar/store.py:238
+#: calendar/store.py:227
 #, python-format
 msgid "Could not read %s: %s"
 msgstr ""
@@ -663,43 +635,79 @@ msgstr ""
 msgid "Calendar Event"
 msgstr ""
 
-#: agent/main.py:122
+#: agent/main.py:109 agent/main.py:114
+msgid "Alarm"
+msgstr ""
+
+#: agent/main.py:134 agent/main.py:259
 msgid "Mute"
 msgstr ""
 
-#: agent/main.py:201
-msgid "Open Calendar"
+#: agent/main.py:190
+msgid "Open Clocks"
 msgstr ""
 
-#: agent/main.py:211
-msgid "Dismiss"
-msgstr ""
-
-#: agent/main.py:215
+#: agent/main.py:194 agent/main.py:350
 msgid "Snooze"
 msgstr ""
 
-#: agent/main.py:223
+#: agent/main.py:203 agent/main.py:358
 #, python-format
 msgid "%d minute"
 msgid_plural "%d minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: agent/main.py:543
+#: agent/main.py:209 agent/main.py:346
+msgid "Dismiss"
+msgstr ""
+
+#: agent/main.py:336
+msgid "Open Calendar"
+msgstr ""
+
+#: agent/main.py:689
 #, python-format
 msgid "Starts in %d minute"
 msgid_plural "Starts in %d minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: agent/main.py:546
+#: agent/main.py:692
 msgid "Starts now"
 msgstr ""
 
-#: agent/main.py:549
+#: agent/main.py:695
 #, python-format
 msgid "This event started %d minute ago"
 msgid_plural "This event started %d minutes ago"
 msgstr[0] ""
 msgstr[1] ""
+
+#: clockenstein/formatting.py:10
+msgid "MON"
+msgstr ""
+
+#: clockenstein/formatting.py:10
+msgid "TUE"
+msgstr ""
+
+#: clockenstein/formatting.py:10
+msgid "WED"
+msgstr ""
+
+#: clockenstein/formatting.py:10
+msgid "THU"
+msgstr ""
+
+#: clockenstein/formatting.py:10
+msgid "FRI"
+msgstr ""
+
+#: clockenstein/formatting.py:10
+msgid "SAT"
+msgstr ""
+
+#: clockenstein/formatting.py:10
+msgid "SUN"
+msgstr ""

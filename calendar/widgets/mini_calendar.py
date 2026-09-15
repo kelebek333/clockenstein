@@ -8,7 +8,7 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import ordered_weekday_names, start_of_week
+from clockenstein.formatting import ordered_weekday_names, start_of_week
 
 
 class MiniCalendar(Gtk.Box):

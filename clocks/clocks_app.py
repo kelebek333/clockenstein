@@ -13,24 +13,12 @@ from gi.repository import Gdk, Gio, GLib, GSound, Gtk
 import xapp.SettingsWidgets as Xs
 from xapp.util import l10n
 
-try:
-    from formatting import format_time
-except ModuleNotFoundError:
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "calendar"))
-    from formatting import format_time
-try:
-    from alarms import AlarmStore, DEFAULT_SOUND
-except ModuleNotFoundError:
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "daemon"))
-    from alarms import AlarmStore, DEFAULT_SOUND
+from clockenstein import (AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH,
+                          SETTINGS_SCHEMA)
+from clockenstein.alarms import AlarmStore, DEFAULT_SOUND
+from clockenstein.formatting import format_time
 
 _ = l10n("clockenstein")
-
-BUS_NAME = "org.x.clockenstein.Calendar.Service"
-BUS_PATH = "/org/x/clockenstein/Calendar/Service"
-BUS_INTERFACE = "org.x.clockenstein.Calendar.Service"
-AGENT_BUS_NAME = "org.x.clockenstein.Calendar.NotificationAgent"
-
 
 def _locale_weekday_initials():
     monday = datetime.date(2024, 1, 1)
@@ -105,8 +93,8 @@ class ClocksWindow(Gtk.ApplicationWindow):
     def __init__(self, application):
         super().__init__(application=application, title=_("Clocks"))
         self.set_default_size(540, 420)
-        self.set_icon_name("clockenstein-clock")
-        self.settings = Gio.Settings.new("org.x.clockenstein.calendar")
+        self.set_icon_name("clockenstein-clocks")
+        self.settings = Gio.Settings.new(SETTINGS_SCHEMA)
         self.settings.connect("changed::time-format", lambda *_args: self.refresh())
         self.alarms = AlarmStore()
         self.sound = GSound.Context()

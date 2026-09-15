@@ -1,2 +1,2 @@
 #!/bin/sh
-exec /usr/bin/python3 @calendar_dir@/main.py "$@"
+exec /usr/bin/python3 @calendar_dir@/calendar_app.py "$@"

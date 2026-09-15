@@ -1,8 +1,5 @@
 usr/bin/clockenstein-clocks
 usr/share/applications/org.x.clockenstein.Clocks.desktop
-usr/share/clockenstein/clocks/main.py
+usr/share/clockenstein/clocks/clocks_app.py
 usr/share/clockenstein/clocks/style.css
-usr/share/clockenstein/clocks/formatting.py
-usr/share/clockenstein/clocks/alarms.py
-usr/share/icons/hicolor/scalable/apps/clockenstein-clock.svg
-usr/share/clockenstein/sounds/notification.oga
+usr/share/icons/hicolor/scalable/apps/clockenstein-clocks.svg

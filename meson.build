@@ -12,9 +12,8 @@ sounds_dir = join_paths(clockenstein_dir, 'sounds')
 systemd_user_unit_dir = join_paths(prefix, 'lib', 'systemd', 'user')
 
 install_data(
-  'calendar/main.py',
+  'calendar/calendar_app.py',
   'calendar/dbus.py',
-  'calendar/formatting.py',
   'calendar/store.py',
   'calendar/event_dialog.py',
   'calendar/preferences.py',
@@ -23,19 +22,22 @@ install_data(
 )
 
 install_data(
-  'clocks/main.py',
+  'clocks/clocks_app.py',
   'clocks/style.css',
-  'calendar/formatting.py',
-  'daemon/alarms.py',
   install_dir: clocks_dir,
 )
 
-install_data('daemon/alarms.py', install_dir: daemon_dir)
+install_data(
+  'clockenstein/__init__.py',
+  'clockenstein/alarms.py',
+  'clockenstein/formatting.py',
+  install_dir: join_paths(prefix, 'lib', 'python3', 'dist-packages', 'clockenstein'),
+)
 install_data('data/notification.oga', install_dir: sounds_dir)
 
 custom_target('clockenstein_daemon_versioned',
-  input: 'daemon/main.py',
-  output: 'main.py',
+  input: 'daemon/daemon.py',
+  output: 'daemon.py',
   command: ['sed', 's/__PROJECT_VERSION__/@0@/g'.format(meson.project_version()), '@INPUT@'],
   capture: true,
   install: true,
@@ -52,8 +54,7 @@ custom_target('clockenstein_main_window_versioned',
 )
 
 install_data(
-  'agent/main.py',
-  'data/notification.oga',
+  'agent/agent.py',
   install_dir: agent_dir,
 )
 

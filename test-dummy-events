@@ -14,16 +14,11 @@ from gi.repository import Gio, GLib
 
 
 ROOT = Path(__file__).resolve().parent
-sys.path[:0] = [str(ROOT / "daemon"), str(ROOT / "calendar")]
+sys.path.insert(0, str(ROOT / "calendar"))
 
-from alarms import AlarmStore
+from clockenstein.alarms import AlarmStore
+from clockenstein import BUS_INTERFACE, BUS_NAME, BUS_PATH, SETTINGS_SCHEMA
 from store import CalendarManager
-
-
-BUS_NAME = "org.x.clockenstein.Calendar.Service"
-BUS_PATH = "/org/x/clockenstein/Calendar/Service"
-BUS_INTERFACE = "org.x.clockenstein.Calendar.Service"
-
 
 def deploy_services():
     subprocess.run(
@@ -37,7 +32,18 @@ def deploy_services():
         cwd=ROOT, check=True,
     )
     subprocess.run(
-        ["sudo", "cp", "data/notification.oga", "/usr/share/clockenstein/agent/"],
+        ["sudo", "rm", "-rf", "/usr/lib/python3/dist-packages/clockenstein"],
+        check=True,
+    )
+    subprocess.run(
+        ["sudo", "cp", "-R", "clockenstein", "/usr/lib/python3/dist-packages/"],
+        cwd=ROOT, check=True,
+    )
+    subprocess.run(
+        ["sudo", "mkdir", "-p", "/usr/share/clockenstein/sounds"], check=True
+    )
+    subprocess.run(
+        ["sudo", "cp", "data/notification.oga", "/usr/share/clockenstein/sounds/"],
         cwd=ROOT, check=True,
     )
     for service in ("clockenstein-daemon.service",
@@ -80,8 +86,8 @@ def create_alarm(timezone, trigger):
 
 
 def create_reminder(timezone, trigger):
-    lead_minutes = Gio.Settings.new("org.x.clockenstein.daemon").get_uint(
-        "notification-minutes"
+    lead_minutes = Gio.Settings.new(SETTINGS_SCHEMA).get_uint(
+        "reminder-minutes"
     )
     start = trigger + datetime.timedelta(minutes=lead_minutes)
     CalendarManager(timezone).create_event({

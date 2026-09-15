@@ -2,11 +2,11 @@ import datetime
 import json
 import os
 import re
-import shutil
 import uuid
 from pathlib import Path
 from typing import Optional
 
+from gi.repository import Gio, GLib
 from icalendar import Calendar, Event
 from xapp.util import l10n
 
@@ -23,10 +23,6 @@ DEFAULT_COLOR = "#2aa198"
 
 def watch_timezone_changes(callback):
     """Refresh the cached zone when the system updates /etc/localtime."""
-    try:
-        from gi.repository import Gio, GLib
-    except ImportError:
-        return None
     try:
         monitor = Gio.File.new_for_path("/etc").monitor_directory(
             Gio.FileMonitorFlags.NONE, None
@@ -52,16 +48,9 @@ class LocalStore:
         self.registry_file = self.data_dir / "calendars.json"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.calendars_dir.mkdir(parents=True, exist_ok=True)
-        self._migrate_legacy_file()
         self._registry = self._load_registry()
         if not self._registry:
             self.create_calendar(_("Personal"), DEFAULT_COLOR, calendar_id="personal")
-
-    def _migrate_legacy_file(self):
-        legacy = self.data_dir / "calendar.ics"
-        target = self.calendars_dir / "personal.ics"
-        if legacy.exists() and not target.exists():
-            shutil.copy2(legacy, target)
 
     def _load_registry(self):
         try:
