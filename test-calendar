@@ -1,0 +1,5 @@
+#!/bin/bash
+sudo rm -rf /usr/share/clockenstein/calendar
+sudo cp -R calendar /usr/share/clockenstein/
+killall clockenstein-calendar 2>/dev/null
+clockenstein-calendar &

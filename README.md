@@ -94,6 +94,7 @@ gir1.2-gtk-3.0
 libglib2.0-dev-bin
 meson
 python3
+python3-babel
 python3-caldav
 python3-gi
 python3-google-auth-httplib2

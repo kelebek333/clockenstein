@@ -23,3 +23,12 @@ i18n.merge_file(
   install: true,
   install_dir: join_paths(get_option('datadir'), 'applications'),
 )
+
+i18n.merge_file(
+  input: 'org.x.clockenstein.Clocks.desktop.in',
+  output: 'org.x.clockenstein.Clocks.desktop',
+  type: 'desktop',
+  po_dir: join_paths(meson.project_source_root(), 'po'),
+  install: true,
+  install_dir: join_paths(get_option('datadir'), 'applications'),
+)

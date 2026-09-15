@@ -5,8 +5,10 @@ datadir = get_option('datadir')
 bindir = get_option('bindir')
 clockenstein_dir = join_paths(prefix, datadir, 'clockenstein')
 calendar_dir = join_paths(clockenstein_dir, 'calendar')
+clocks_dir = join_paths(clockenstein_dir, 'clocks')
 daemon_dir = join_paths(clockenstein_dir, 'daemon')
 agent_dir = join_paths(clockenstein_dir, 'agent')
+sounds_dir = join_paths(clockenstein_dir, 'sounds')
 systemd_user_unit_dir = join_paths(prefix, 'lib', 'systemd', 'user')
 
 install_data(
@@ -19,6 +21,17 @@ install_data(
   'calendar/style.css',
   install_dir: calendar_dir,
 )
+
+install_data(
+  'clocks/main.py',
+  'clocks/style.css',
+  'calendar/formatting.py',
+  'daemon/alarms.py',
+  install_dir: clocks_dir,
+)
+
+install_data('daemon/alarms.py', install_dir: daemon_dir)
+install_data('data/notification.oga', install_dir: sounds_dir)
 
 custom_target('clockenstein_daemon_versioned',
   input: 'daemon/main.py',
@@ -66,11 +79,21 @@ install_data(
 
 launcher_conf = configuration_data()
 launcher_conf.set('calendar_dir', calendar_dir)
+launcher_conf.set('clocks_dir', clocks_dir)
 launcher_conf.set('daemon_dir', daemon_dir)
 launcher_conf.set('agent_dir', agent_dir)
 configure_file(
   input: 'data/clockenstein-calendar.in',
   output: 'clockenstein-calendar',
+  configuration: launcher_conf,
+  install: true,
+  install_dir: bindir,
+  install_mode: 'rwxr-xr-x',
+)
+
+configure_file(
+  input: 'data/clockenstein-clocks.in',
+  output: 'clockenstein-clocks',
   configuration: launcher_conf,
   install: true,
   install_dir: bindir,

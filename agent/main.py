@@ -40,6 +40,7 @@ class NotificationAgent:
         self.updating_mute_items = False
         self.connection = None
         self.subscription_id = 0
+        self.alarm_subscription_id = 0
         self.name_owner_id = 0
         self.windows = set()
         self.sound_loops = {}
@@ -69,6 +70,10 @@ class NotificationAgent:
                 Gio.DBusSignalFlags.NONE,
                 self._reminder_received,
             )
+            self.alarm_subscription_id = self.connection.signal_subscribe(
+                BUS_NAME, BUS_INTERFACE, "Alarm", BUS_PATH, None,
+                Gio.DBusSignalFlags.NONE, self._alarm_received,
+            )
             self._log("Listening for reminders")
         signal.signal(signal.SIGINT, lambda _signum, _frame: Gtk.main_quit())
         signal.signal(signal.SIGTERM, lambda _signum, _frame: Gtk.main_quit())
@@ -77,6 +82,8 @@ class NotificationAgent:
             self._stop_sound_loop(window)
         if self.connection and self.subscription_id:
             self.connection.signal_unsubscribe(self.subscription_id)
+        if self.connection and self.alarm_subscription_id:
+            self.connection.signal_unsubscribe(self.alarm_subscription_id)
         if self.name_owner_id:
             Gio.bus_unown_name(self.name_owner_id)
         self._log("Stopped")
@@ -100,11 +107,92 @@ class NotificationAgent:
             calendar_name, calendar_color
         )
 
+    def _alarm_received(self, _connection, _sender, _path, _interface,
+                        _signal, parameters):
+        alarm_id, label, trigger, sound_file = parameters.unpack()
+        self._log(f"Received alarm for {alarm_id}")
+        self._show_alarm(alarm_id, label or _("Alarm"), trigger, sound_file)
+
+    @run_idle
+    def _show_alarm(self, alarm_id, label, trigger, sound_file):
+        window = Gtk.Window(title=_("Alarm"))
+        window.reminder_uid = f"alarm:{alarm_id}"
+        window.sound_file = sound_file
+        window.set_default_size(360, -1)
+        window.set_resizable(False)
+        window.set_position(Gtk.WindowPosition.CENTER)
+        window.set_urgency_hint(True)
+        window.set_keep_above(True)
+        window.set_icon_name("clockenstein-clock")
+
+        header = Gtk.HeaderBar(title=_("Alarm"))
+        header.set_show_close_button(False)
+        window.sound_icon = Gtk.Image.new_from_icon_name(
+            "audio-volume-high-symbolic", Gtk.IconSize.BUTTON
+        )
+        window.sound_icon.set_no_show_all(True)
+        header.pack_end(window.sound_icon)
+        window.set_titlebar(header)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content.set_border_width(18)
+        window.add(content)
+        title = Gtk.Label(xalign=0.5)
+        title.set_markup(
+            f'<span size="xx-large" weight="bold">{GLib.markup_escape_text(label)}</span>'
+        )
+        title.set_line_wrap(True)
+        content.pack_start(title, False, False, 0)
+        when = datetime.datetime.fromtimestamp(trigger).strftime("%H:%M")
+        content.pack_start(Gtk.Label(label=when, xalign=0.5), False, False, 0)
+
+        buttons = Gtk.ButtonBox(orientation=Gtk.Orientation.HORIZONTAL)
+        buttons.set_layout(Gtk.ButtonBoxStyle.END)
+        buttons.set_spacing(6)
+        snooze = Gtk.MenuButton()
+        snooze.add(Gtk.Label(label=_("Snooze")))
+        snooze.get_style_context().add_class("suggested-action")
+        menu = Gtk.Menu()
+        for minutes in (5, 10, 15):
+            item = Gtk.MenuItem.new_with_label(
+                gettext.ngettext("%d minute", "%d minutes", minutes) % minutes
+            )
+            item.connect("activate", self._snooze_alarm, window, alarm_id, minutes)
+            menu.append(item)
+        menu.show_all()
+        snooze.set_popup(menu)
+        dismiss = Gtk.Button.new_with_label(_("Dismiss"))
+        dismiss.get_style_context().add_class("destructive-action")
+        dismiss.connect("clicked", self._dismiss_alarm, window, alarm_id)
+        buttons.add(snooze)
+        buttons.add(dismiss)
+        content.pack_start(buttons, False, False, 0)
+
+        window.mute_item = None
+        window.fade_timer_id = 0
+        window.relative_timer_id = 0
+        self.windows.add(window)
+        window.connect("destroy", self._window_destroyed)
+        self._present_window(window)
+        if sound_file:
+            self._start_sound_loop(window, window.reminder_uid, sound_file)
+        return GLib.SOURCE_REMOVE
+
+    def _snooze_alarm(self, _item, window, alarm_id, minutes):
+        self._stop_sound_loop(window)
+        window.hide()
+        GLib.timeout_add_seconds(minutes * 60, self._wake_snoozed, window,
+                                 f"alarm:{alarm_id}")
+
+    def _dismiss_alarm(self, _button, window, alarm_id):
+        window.destroy()
+
     @run_idle
     def _show_reminder(self, uid, summary, start_timestamp, location, description,
                        calendar_name, calendar_color):
         window = Gtk.Window(title=APPLICATION_NAME)
         window.reminder_uid = uid
+        window.sound_file = ALARM_SOUND
         window.set_default_size(420, -1)
         window.set_resizable(False)
         window.set_position(Gtk.WindowPosition.CENTER)
@@ -249,7 +337,8 @@ class NotificationAgent:
             GLib.source_remove(window.relative_timer_id)
             window.relative_timer_id = 0
         self._stop_sound_loop(window)
-        self.mute_items.discard(window.mute_item)
+        if window.mute_item:
+            self.mute_items.discard(window.mute_item)
         self.windows.discard(window)
         self._log(f"Dismissed reminder for {window.reminder_uid}")
 
@@ -354,15 +443,17 @@ class NotificationAgent:
         else:
             for window in self.windows:
                 if window.get_visible():
-                    self._start_sound_loop(window, window.reminder_uid)
+                    self._start_sound_loop(
+                        window, window.reminder_uid, window.sound_file
+                    )
             self._log("Reminder sounds unmuted")
 
-    def _start_sound_loop(self, window, uid):
+    def _start_sound_loop(self, window, uid, sound_file=ALARM_SOUND):
         self._stop_sound_loop(window)
         if self.muted:
             return
-        if not os.path.exists(ALARM_SOUND):
-            self._log(f"Alarm sound not found: {ALARM_SOUND}")
+        if not os.path.exists(sound_file):
+            self._log(f"Alarm sound not found: {sound_file}")
             return
         cancellable = Gio.Cancellable()
         timeout_id = GLib.timeout_add_seconds(2 * 60, self._sound_limit, window, uid)
@@ -371,6 +462,7 @@ class NotificationAgent:
             "limit_id": timeout_id,
             "replay_id": 0,
             "pulse_id": 0,
+            "sound_file": sound_file,
         }
         self._play_sound_iteration(window)
         self._log(f"Started alarm sound loop for {uid}")
@@ -387,7 +479,7 @@ class NotificationAgent:
                 500, self._pulse_sound_icon, window
             )
             self.sound.play_full(
-                {GSound.ATTR_MEDIA_FILENAME: ALARM_SOUND},
+                {GSound.ATTR_MEDIA_FILENAME: state["sound_file"]},
                 cancellable,
                 self._sound_finished,
                 window,

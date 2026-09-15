@@ -1,0 +1,43 @@
+.clockenstein-alarm-row {
+    border-bottom: 1px solid alpha(@borders, 0.65);
+}
+.clockenstein-alarm-row:hover {
+    background-color: alpha(@theme_selected_bg_color, 0.08);
+}
+.clockenstein-alarm-time {
+    color: @theme_selected_bg_color;
+    font-size: 2.6em;
+    font-weight: 300;
+    min-width: 140px;
+    font-family: monospace;
+}
+.clockenstein-alarm-name {
+    font-size: 1.1em;
+    font-weight: 400;
+    margin-bottom: 3px;
+}
+.clockenstein-alarm-days {
+    font-size: 0.9em;
+    min-width: 140px;
+    font-family: monospace;
+}
+.clockenstein-alarm-info {
+    color: @insensitive_fg_color;
+    font-size: 0.9em;
+    min-width: 140px;
+    font-family: monospace;
+}
+
+.clockenstein-alarm-sound,
+.clockenstein-alarm-sound image {
+    color: @insensitive_fg_color;
+    font-size: 0.9em;
+}
+
+.clockenstein-editor-time-info {
+    color: @theme_selected_bg_color;
+}
+
+.clockenstein-editor-section {
+    font-weight: bold;
+}

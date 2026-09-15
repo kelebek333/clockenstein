@@ -15,8 +15,10 @@ from xapp.threading import run_async, run_idle
 # Calendar modules remain shared with the graphical calendar application.
 CALENDAR_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "calendar")
 sys.path.insert(0, CALENDAR_DIR)
+sys.path.insert(0, os.path.dirname(__file__))
 
 from dbus import BUS_INTERFACE, BUS_NAME, BUS_PATH
+from alarms import AlarmStore, due_alarms
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
 from store import CalendarManager, watch_timezone_changes
 
@@ -52,7 +54,9 @@ INTERFACE_XML = f"""
       <arg type="x" name="since" direction="in"/>
       <arg type="x" name="until" direction="in"/>
     </method>
+    <method name="NotifyAlarmsChanged"/>
     <signal name="Changed"/>
+    <signal name="AlarmsChanged"/>
     <signal name="Reminder">
       <arg type="s" name="uid"/>
       <arg type="s" name="summary"/>
@@ -62,6 +66,12 @@ INTERFACE_XML = f"""
       <arg type="s" name="calendar_color"/>
       <arg type="x" name="start"/>
       <arg type="b" name="all_day"/>
+    </signal>
+    <signal name="Alarm">
+      <arg type="s" name="id"/>
+      <arg type="s" name="label"/>
+      <arg type="x" name="trigger"/>
+      <arg type="s" name="sound"/>
     </signal>
   </interface>
 </node>
@@ -82,6 +92,8 @@ class ClockensteinDaemon:
         self.refresh_queue = []
         self.last_reminder_check = None
         self.reminder_events = []
+        self.alarms = AlarmStore()
+        self.alarm_records = self.alarms.list()
         self.loop = GLib.MainLoop()
         self.node_info = Gio.DBusNodeInfo.new_for_xml(INTERFACE_XML)
         # Keep the monitor alive; otherwise it may be garbage-collected.
@@ -202,12 +214,19 @@ class ClockensteinDaemon:
             self._request_refresh(refresh_google=False, refresh_caldav=True,
                                   date_range=date_range)
             invocation.return_value(None)
+        elif method == "NotifyAlarmsChanged":
+            self._reload_alarms()
+            self._emit_alarms_changed()
+            invocation.return_value(None)
 
     def _events_for_range(self, since, until):
         start = datetime.datetime.fromtimestamp(since, self.timezone).date()
         end = datetime.datetime.fromtimestamp(until, self.timezone).date()
         store = CalendarManager(self.timezone)
         return [self._event_tuple(event) for event in store.get_events(start, end)]
+
+    def _reload_alarms(self):
+        self.alarm_records = self.alarms.list()
 
     def _event_tuple(self, event):
         all_day = bool(event.get("all_day"))
@@ -246,6 +265,11 @@ class ClockensteinDaemon:
                       if event.get("reminders", True)]
             for event in _due_notifications(events, since, now, minutes, self.timezone):
                 self._emit_reminder(event)
+            for alarm, trigger in due_alarms(self.alarm_records, since, now, self.timezone):
+                self.alarms.mark_fired(alarm)
+                self._reload_alarms()
+                self._emit_alarm(alarm, trigger)
+                self._emit_alarms_changed()
         except Exception as exc:
             self._log(f"Could not check reminders: {exc}")
         return GLib.SOURCE_CONTINUE
@@ -273,6 +297,20 @@ class ClockensteinDaemon:
         self._log(f"Emitting Reminder for {uid}")
         self.connection.emit_signal(
             None, BUS_PATH, BUS_INTERFACE, "Reminder", parameters
+        )
+
+    def _emit_alarm(self, alarm, trigger):
+        if not self.connection:
+            return
+        label = alarm.get("label") or "Alarm"
+        self._log(f"Emitting Alarm for {alarm['id']}")
+        self.connection.emit_signal(
+            None, BUS_PATH, BUS_INTERFACE, "Alarm",
+            GLib.Variant(
+                "(ssxs)",
+                (alarm["id"], label, int(trigger.timestamp()),
+                 alarm.get("sound", "") if alarm.get("sound_enabled", True) else ""),
+            ),
         )
 
     def _request_refresh(self, refresh_google=False, refresh_caldav=True,
@@ -358,6 +396,10 @@ class ClockensteinDaemon:
         if self.connection:
             self._log("Emitting Changed")
             self.connection.emit_signal(None, BUS_PATH, BUS_INTERFACE, "Changed", None)
+
+    def _emit_alarms_changed(self):
+        if self.connection:
+            self.connection.emit_signal(None, BUS_PATH, BUS_INTERFACE, "AlarmsChanged", None)
 
     def _log(self, message):
         if self.verbose:
