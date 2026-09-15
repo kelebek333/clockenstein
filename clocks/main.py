@@ -47,6 +47,48 @@ def _locale_weekday_abbreviations():
     )
 
 
+def _next_alarm_time(alarm, now):
+    if not alarm.get("enabled", True):
+        return None
+    time = datetime.time.fromisoformat(alarm["time"])
+    if alarm.get("date"):
+        trigger = datetime.datetime.combine(
+            datetime.date.fromisoformat(alarm["date"]), time
+        )
+        return trigger if trigger > now else None
+    if alarm.get("repeat"):
+        for offset in range(7):
+            date = now.date() + datetime.timedelta(days=offset)
+            if date.weekday() not in alarm["repeat"]:
+                continue
+            trigger = datetime.datetime.combine(date, time)
+            if trigger > now:
+                return trigger
+        return None
+    trigger = datetime.datetime.combine(now.date(), time)
+    return trigger if trigger > now else trigger + datetime.timedelta(days=1)
+
+
+def _next_alarm_label(alarms):
+    now = datetime.datetime.now()
+    triggers = [trigger for alarm in alarms
+                if (trigger := _next_alarm_time(alarm, now)) is not None]
+    if not triggers:
+        return None
+    next_trigger = min(triggers)
+    if next_trigger - now > datetime.timedelta(days=1):
+        return None
+    minutes = max(1, int((next_trigger - now).total_seconds() + 59) // 60)
+    hours, minutes = divmod(minutes, 60)
+    if not hours:
+        return _("Alarm in %(minutes)d minutes") % {"minutes": minutes}
+    if not minutes:
+        return _("Alarm in %(hours)d hours") % {"hours": hours}
+    return _("Alarm in %(hours)d hours %(minutes)d minutes") % {
+        "hours": hours, "minutes": minutes,
+    }
+
+
 class ClocksWindow(Gtk.ApplicationWindow):
     def __init__(self, application):
         super().__init__(application=application, title=_("Clocks"))
@@ -78,13 +120,37 @@ class ClocksWindow(Gtk.ApplicationWindow):
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.add(self.list_box)
-        self.add(scroll)
+        layout = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.next_alarm_label = Gtk.Label(xalign=0.5)
+        self.next_alarm_label.get_style_context().add_class("clockenstein-next-alarm")
+        self.next_alarm_label.set_no_show_all(True)
+        self.next_alarm_label.set_margin_top(20)
+        self.next_alarm_label.set_margin_bottom(12)
+        layout.pack_start(self.next_alarm_label, False, False, 0)
+        layout.pack_start(scroll, True, True, 0)
+        self.add(layout)
+        self.order_refresh_source = 0
         self.refresh()
+        self._schedule_order_refresh()
 
     def _destroyed(self, _window):
         if self.subscription:
             self.connection.signal_unsubscribe(self.subscription)
             self.subscription = 0
+        if self.order_refresh_source:
+            GLib.source_remove(self.order_refresh_source)
+            self.order_refresh_source = 0
+
+    def _schedule_order_refresh(self):
+        now = datetime.datetime.now()
+        delay = int((60 - now.second - now.microsecond / 1_000_000) * 1000) + 1
+        self.order_refresh_source = GLib.timeout_add(delay, self._refresh_alarm_order)
+
+    def _refresh_alarm_order(self):
+        self.order_refresh_source = 0
+        self.refresh()
+        self._schedule_order_refresh()
+        return GLib.SOURCE_REMOVE
 
     def _alarms_changed(self, *_args):
         self.refresh()
@@ -104,12 +170,25 @@ class ClocksWindow(Gtk.ApplicationWindow):
         try:
             alarms = self.alarms.list()
         except OSError as exc:
+            self.next_alarm_label.hide()
             label = Gtk.Label(label=_('Could not load alarms: %s') % exc, xalign=0.5)
             label.set_margin_top(24)
             self.list_box.add(label)
             self.show_all()
             return
-        for alarm in sorted(alarms, key=lambda item: (not item.get("enabled", True), item["time"])):
+        next_alarm = _next_alarm_label(alarms)
+        if next_alarm:
+            self.next_alarm_label.set_text(next_alarm)
+            self.next_alarm_label.show()
+        else:
+            self.next_alarm_label.hide()
+        now = datetime.datetime.now().time()
+
+        def next_time_key(alarm):
+            time = datetime.time.fromisoformat(alarm["time"])
+            return time <= now, time
+
+        for alarm in sorted(alarms, key=next_time_key):
             self.list_box.add(self._alarm_row(alarm))
         if not alarms:
             empty = Gtk.Label(label=_("No alarms yet"), xalign=0.5)
@@ -449,10 +528,11 @@ def _alarm_time_info(alarm):
         for index, initial in enumerate(_locale_weekday_initials()):
             day = Gtk.Label(xalign=0.5)
             if index in repeat:
-                day.set_markup(f"<b>•\n{initial}</b>")
+                day.set_text(f"•\n{initial}")
+                day.get_style_context().add_class("clockenstein-alarm-day-active")
             else:
                 day.set_text(f" \n{initial}")
-                day.set_opacity(0.35)
+                day.get_style_context().add_class("clockenstein-alarm-day-inactive")
             days.pack_start(day, False, False, 1)
         return days
     if alarm.get("date"):

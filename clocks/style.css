@@ -4,9 +4,14 @@
 .clockenstein-alarm-row:hover {
     background-color: alpha(@theme_selected_bg_color, 0.08);
 }
+.clockenstein-next-alarm {
+    color: @theme_selected_bg_color;
+    font-size: 2.2em;
+    font-weight: 300;
+}
 .clockenstein-alarm-time {
     color: @theme_selected_bg_color;
-    font-size: 2.6em;
+    font-size: 2.2em;
     font-weight: 300;
     min-width: 140px;
     font-family: monospace;
@@ -20,6 +25,12 @@
     font-size: 0.9em;
     min-width: 140px;
     font-family: monospace;
+}
+.clockenstein-alarm-day-active {
+    /*font-weight: bold;*/
+}
+.clockenstein-alarm-day-inactive {
+    opacity: 0.35;
 }
 .clockenstein-alarm-info {
     color: @insensitive_fg_color;
