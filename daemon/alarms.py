@@ -55,10 +55,9 @@ class AlarmStore:
         return self.update(alarm_id, {"enabled": bool(enabled)})
 
     def mark_fired(self, alarm):
-        values = {"last_fired": int(datetime.datetime.now().timestamp())}
-        if not alarm.get("repeat"):
-            values["enabled"] = False
-        return self.update(alarm["id"], values)
+        return self.update(alarm["id"], {
+            "last_fired": int(datetime.datetime.now().timestamp()),
+        })
 
     def _replace(self, replacement):
         alarms = self.list()

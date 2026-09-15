@@ -4,6 +4,9 @@
 .clockenstein-alarm-row:hover {
     background-color: alpha(@theme_selected_bg_color, 0.08);
 }
+.clockenstein-alarm-past {
+    opacity: 0.55;
+}
 .clockenstein-next-alarm {
     color: @theme_selected_bg_color;
     font-size: 2.2em;

@@ -47,8 +47,8 @@ def _locale_weekday_abbreviations():
     )
 
 
-def _next_alarm_time(alarm, now):
-    if not alarm.get("enabled", True):
+def _next_alarm_time(alarm, now, include_disabled=False):
+    if not include_disabled and not alarm.get("enabled", True):
         return None
     time = datetime.time.fromisoformat(alarm["time"])
     if alarm.get("date"):
@@ -67,6 +67,17 @@ def _next_alarm_time(alarm, now):
         return None
     trigger = datetime.datetime.combine(now.date(), time)
     return trigger if trigger > now else trigger + datetime.timedelta(days=1)
+
+
+def _is_past_one_off(alarm, now=None):
+    if not alarm.get("date") or alarm.get("repeat"):
+        return False
+    now = now or datetime.datetime.now()
+    trigger = datetime.datetime.combine(
+        datetime.date.fromisoformat(alarm["date"]),
+        datetime.time.fromisoformat(alarm["time"]),
+    )
+    return trigger <= now
 
 
 def _next_alarm_label(alarms):
@@ -182,11 +193,15 @@ class ClocksWindow(Gtk.ApplicationWindow):
             self.next_alarm_label.show()
         else:
             self.next_alarm_label.hide()
-        now = datetime.datetime.now().time()
+        now = datetime.datetime.now()
 
         def next_time_key(alarm):
-            time = datetime.time.fromisoformat(alarm["time"])
-            return time <= now, time
+            if _is_past_one_off(alarm, now):
+                return 0, datetime.datetime.combine(
+                    datetime.date.fromisoformat(alarm["date"]),
+                    datetime.time.fromisoformat(alarm["time"]),
+                )
+            return 1, _next_alarm_time(alarm, now, include_disabled=True)
 
         for alarm in sorted(alarms, key=next_time_key):
             self.list_box.add(self._alarm_row(alarm))
@@ -201,6 +216,9 @@ class ClocksWindow(Gtk.ApplicationWindow):
         row = Gtk.ListBoxRow()
         row.alarm = alarm
         row.get_style_context().add_class("clockenstein-alarm-row")
+        past = _is_past_one_off(alarm)
+        if past:
+            row.get_style_context().add_class("clockenstein-alarm-past")
         content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
         content.set_border_width(12)
         row.add(content)
@@ -238,11 +256,12 @@ class ClocksWindow(Gtk.ApplicationWindow):
         edit.set_tooltip_text(_("Edit Alarm"))
         edit.connect("clicked", self._edit_alarm, alarm)
         content.pack_start(edit, False, False, 0)
-        enabled = Gtk.Switch()
-        enabled.set_active(alarm.get("enabled", True))
-        enabled.set_valign(Gtk.Align.CENTER)
-        enabled.connect("notify::active", self._set_enabled, alarm["id"])
-        content.pack_start(enabled, False, False, 0)
+        if not past:
+            enabled = Gtk.Switch()
+            enabled.set_active(alarm.get("enabled", True))
+            enabled.set_valign(Gtk.Align.CENTER)
+            enabled.connect("notify::active", self._set_enabled, alarm["id"])
+            content.pack_start(enabled, False, False, 0)
         return row
 
     def _set_enabled(self, switch, _property, alarm_id):
@@ -295,7 +314,6 @@ class ClocksWindow(Gtk.ApplicationWindow):
         editor.set_margin_bottom(0)
         content.pack_start(editor, True, True, 0)
 
-        settings_section = editor.add_section()
         entry = Gtk.Entry()
         entry.set_placeholder_text(_("Alarm name"))
         entry.set_text(alarm.get("label", "") if alarm else "")
@@ -304,7 +322,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         name_label.get_style_context().add_class("dim-label")
         name_row.pack_start(name_label, False, False, 0)
         name_row.pack_end(entry, True, True, 0)
-        settings_section.add_row(name_row)
+        editor.pack_start(name_row, False, False, 0)
         hour = Gtk.SpinButton.new_with_range(0, 23, 1)
         minute = Gtk.SpinButton.new_with_range(0, 59, 1)
         hour.set_numeric(True)
@@ -371,7 +389,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         control_width.add_widget(time_box)
         control_width.add_widget(days)
         dialog.control_width = control_width
-        settings_section.add_row(time_row)
+        editor.pack_start(time_row, False, False, 0)
         sound_enabled = Gtk.Switch()
         sound_enabled.set_active(alarm.get("sound_enabled", True) if alarm else True)
 
@@ -434,7 +452,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         sound_controls.pack_start(sound_picker, False, False, 0)
         sound_controls.pack_start(interval_picker, False, False, 0)
         sound_row.pack_end(sound_controls, True, True, 0)
-        settings_section.add_row(sound_row)
+        editor.pack_start(sound_row, False, False, 0)
         label_width = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
         for label in (name_label, time_label, sound_label):
             label_width.add_widget(label)
@@ -552,6 +570,8 @@ def _alarm_time_info(alarm):
         return days
     if alarm.get("date"):
         date = datetime.date.fromisoformat(alarm["date"])
+        if _is_past_one_off(alarm):
+            return _alarm_info_label(_("Past · %s") % _alarm_date_label(date))
     else:
         now = datetime.datetime.now()
         time = datetime.time.fromisoformat(alarm["time"])

@@ -22,10 +22,10 @@ class AlarmTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_one_off_alarm_disables_after_firing(self):
+    def test_one_off_alarm_stays_enabled_after_firing(self):
         alarm = self.store.create({"time": "07:30", "label": "Coffee"})
         fired = self.store.mark_fired(alarm)
-        self.assertFalse(fired["enabled"])
+        self.assertTrue(fired["enabled"])
 
     def test_repeating_alarm_stays_enabled_after_firing(self):
         alarm = self.store.create({"time": "07:30", "repeat": [0, 1, 2, 3, 4]})
