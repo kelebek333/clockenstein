@@ -1,3 +1,4 @@
+import calendar
 import datetime
 from zoneinfo import ZoneInfo
 
@@ -1272,5 +1273,4 @@ class MainWindow(Gtk.Window):
 
 
 def _month_days(year, month):
-    import calendar
     return calendar.monthrange(year, month)[1]
