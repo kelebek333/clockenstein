@@ -25,6 +25,10 @@ from views.week_view import WeekView
 from views.day_view import DayView
 from widgets.mini_calendar import MiniCalendar
 
+ADD_LOCAL_CALENDAR_RESPONSE = 1
+CONNECT_GOOGLE_RESPONSE = 2
+CONNECT_CALDAV_RESPONSE = 3
+
 
 class MainWindow(Gtk.Window):
     def __init__(self):
@@ -703,15 +707,15 @@ class MainWindow(Gtk.Window):
         dialog.show_all()
         while True:
             response = dialog.run()
-            if response == 1:
+            if response == ADD_LOCAL_CALENDAR_RESPONSE:
                 self._add_local_calendar(None, dialog)
                 self._fill_calendar_box(calendar_box)
-            elif response == 2:
+            elif response == CONNECT_GOOGLE_RESPONSE:
                 self._calendar_dialog_box = None
                 dialog.destroy()
                 self._connect_google(None)
                 return
-            elif response == 3:
+            elif response == CONNECT_CALDAV_RESPONSE:
                 self._calendar_dialog_box = None
                 dialog.destroy()
                 self._connect_caldav()
@@ -726,9 +730,9 @@ class MainWindow(Gtk.Window):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.set_border_width(6)
         choices = (
-            (_("Local"), 1),
-            ("Google", 2),
-            (_("CalDAV (Nextcloud, Memotoo, etc.)"), 3),
+            (_("Local"), ADD_LOCAL_CALENDAR_RESPONSE),
+            ("Google", CONNECT_GOOGLE_RESPONSE),
+            (_("CalDAV (Nextcloud, Memotoo, etc.)"), CONNECT_CALDAV_RESPONSE),
         )
         for label, response in choices:
             button = Gtk.ModelButton(text=label)
