@@ -32,6 +32,12 @@ class AlarmTests(unittest.TestCase):
         fired = self.store.mark_fired(alarm)
         self.assertTrue(fired["enabled"])
 
+    def test_sound_interval_defaults_and_persists(self):
+        default = self.store.create({"time": "07:30"})
+        custom = self.store.create({"time": "08:30", "sound_interval": 12})
+        self.assertEqual(default["sound_interval"], 3)
+        self.assertEqual(custom["sound_interval"], 12)
+
     def test_date_specific_alarm_is_due_at_its_time(self):
         alarm = self.store.create({"time": "07:30", "date": "2025-01-01"})
         since = datetime.datetime(2025, 1, 1, 7, 29, tzinfo=self.timezone)

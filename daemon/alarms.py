@@ -88,6 +88,7 @@ class AlarmStore:
             except ValueError as exc:
                 raise ValueError("Invalid alarm date") from exc
         repeat = sorted({int(day) for day in values.get("repeat", []) if 0 <= int(day) <= 6})
+        sound_interval = max(1, int(values.get("sound_interval", 3)))
         if date:
             repeat = []
         return {
@@ -100,6 +101,7 @@ class AlarmStore:
             "last_fired": values.get("last_fired"),
             "sound_enabled": bool(values.get("sound_enabled", True)),
             "sound": str(values.get("sound", DEFAULT_SOUND)),
+            "sound_interval": sound_interval,
         }
 
 

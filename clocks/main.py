@@ -406,20 +406,34 @@ class ClocksWindow(Gtk.ApplicationWindow):
         play.connect("clicked", self._preview_sound, selected_sound)
         sound_picker.pack_start(play, False, False, 0)
         sound_picker.pack_start(sound_enabled, False, False, 0)
+        sound_interval = Gtk.SpinButton.new_with_range(1, 60, 1)
+        sound_interval.set_value(alarm.get("sound_interval", 3) if alarm else 3)
+        sound_interval.set_tooltip_text(_("Seconds between sounds"))
+        seconds = Gtk.Label(label=_("seconds"))
+        interval_picker = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        interval_picker.pack_start(sound_interval, True, True, 0)
+        interval_picker.pack_start(seconds, False, False, 0)
         sound_button.set_sensitive(sound_enabled.get_active())
         play.set_sensitive(sound_enabled.get_active())
+        sound_interval.set_sensitive(sound_enabled.get_active())
+        seconds.set_sensitive(sound_enabled.get_active())
         sound_enabled.connect(
             "notify::active",
             lambda switch, _property: (
                 sound_button.set_sensitive(switch.get_active()),
                 play.set_sensitive(switch.get_active()),
+                sound_interval.set_sensitive(switch.get_active()),
+                seconds.set_sensitive(switch.get_active()),
             ),
         )
         sound_row = Xs.SettingsWidget()
         sound_label = Gtk.Label(label=_("Sound"), xalign=0)
         sound_label.get_style_context().add_class("dim-label")
         sound_row.pack_start(sound_label, False, False, 0)
-        sound_row.pack_end(sound_picker, True, True, 0)
+        sound_controls = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        sound_controls.pack_start(sound_picker, False, False, 0)
+        sound_controls.pack_start(interval_picker, False, False, 0)
+        sound_row.pack_end(sound_controls, True, True, 0)
         settings_section.add_row(sound_row)
         label_width = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
         for label in (name_label, time_label, sound_label):
@@ -506,6 +520,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
                 "enabled": alarm.get("enabled", True) if alarm else True,
                 "sound_enabled": sound_enabled.get_active(),
                 "sound": selected_sound[0],
+                "sound_interval": sound_interval.get_value_as_int(),
             }
             try:
                 if alarm:

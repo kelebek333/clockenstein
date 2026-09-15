@@ -72,6 +72,7 @@ INTERFACE_XML = f"""
       <arg type="s" name="label"/>
       <arg type="x" name="trigger"/>
       <arg type="s" name="sound"/>
+      <arg type="u" name="sound_interval"/>
     </signal>
   </interface>
 </node>
@@ -307,9 +308,10 @@ class ClockensteinDaemon:
         self.connection.emit_signal(
             None, BUS_PATH, BUS_INTERFACE, "Alarm",
             GLib.Variant(
-                "(ssxs)",
+                "(ssxsu)",
                 (alarm["id"], label, int(trigger.timestamp()),
-                 alarm.get("sound", "") if alarm.get("sound_enabled", True) else ""),
+                 alarm.get("sound", "") if alarm.get("sound_enabled", True) else "",
+                 alarm.get("sound_interval", 3)),
             ),
         )
 

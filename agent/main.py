@@ -109,15 +109,19 @@ class NotificationAgent:
 
     def _alarm_received(self, _connection, _sender, _path, _interface,
                         _signal, parameters):
-        alarm_id, label, trigger, sound_file = parameters.unpack()
+        values = parameters.unpack()
+        alarm_id, label, trigger, sound_file = values[:4]
+        sound_interval = values[4] if len(values) > 4 else 3
         self._log(f"Received alarm for {alarm_id}")
-        self._show_alarm(alarm_id, label or _("Alarm"), trigger, sound_file)
+        self._show_alarm(alarm_id, label or _("Alarm"), trigger, sound_file,
+                         sound_interval)
 
     @run_idle
-    def _show_alarm(self, alarm_id, label, trigger, sound_file):
+    def _show_alarm(self, alarm_id, label, trigger, sound_file, sound_interval):
         window = Gtk.Window(title=_("Alarm"))
         window.reminder_uid = f"alarm:{alarm_id}"
         window.sound_file = sound_file
+        window.sound_interval = sound_interval
         window.set_default_size(360, -1)
         window.set_resizable(False)
         window.set_position(Gtk.WindowPosition.CENTER)
@@ -175,7 +179,8 @@ class NotificationAgent:
         window.connect("destroy", self._window_destroyed)
         self._present_window(window)
         if sound_file:
-            self._start_sound_loop(window, window.reminder_uid, sound_file)
+            self._start_sound_loop(window, window.reminder_uid, sound_file,
+                                   sound_interval)
         return GLib.SOURCE_REMOVE
 
     def _snooze_alarm(self, _item, window, alarm_id, minutes):
@@ -355,7 +360,8 @@ class NotificationAgent:
         if window in self.windows:
             self._log(f"Showing snoozed reminder for {uid}")
             self._present_window(window)
-            self._start_sound_loop(window, uid)
+            self._start_sound_loop(window, uid, window.sound_file,
+                                   getattr(window, "sound_interval", 3))
         return GLib.SOURCE_REMOVE
 
     def _present_window(self, window):
@@ -444,11 +450,12 @@ class NotificationAgent:
             for window in self.windows:
                 if window.get_visible():
                     self._start_sound_loop(
-                        window, window.reminder_uid, window.sound_file
+                        window, window.reminder_uid, window.sound_file,
+                        getattr(window, "sound_interval", 3)
                     )
             self._log("Reminder sounds unmuted")
 
-    def _start_sound_loop(self, window, uid, sound_file=ALARM_SOUND):
+    def _start_sound_loop(self, window, uid, sound_file=ALARM_SOUND, sound_interval=3):
         self._stop_sound_loop(window)
         if self.muted:
             return
@@ -463,6 +470,7 @@ class NotificationAgent:
             "replay_id": 0,
             "pulse_id": 0,
             "sound_file": sound_file,
+            "sound_interval": sound_interval,
         }
         self._play_sound_iteration(window)
         self._log(f"Started alarm sound loop for {uid}")
@@ -500,7 +508,7 @@ class NotificationAgent:
         state = self.sound_loops.get(window)
         if state is not None:
             state["replay_id"] = GLib.timeout_add_seconds(
-                5, self._replay_sound, window
+                state["sound_interval"], self._replay_sound, window
             )
 
     def _replay_sound(self, window):
