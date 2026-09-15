@@ -17,7 +17,7 @@ CALENDAR_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "calenda
 sys.path.insert(0, CALENDAR_DIR)
 sys.path.insert(0, os.path.dirname(__file__))
 
-from clockenstein import BUS_INTERFACE, BUS_NAME, BUS_PATH, SETTINGS_SCHEMA
+from clockenstein import BUS_INTERFACE, BUS_NAME, BUS_PATH, DEFAULT_COLOR, SETTINGS_SCHEMA
 from clockenstein.alarms import AlarmStore, due_alarms
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
 from store import CalendarManager, watch_timezone_changes
@@ -243,7 +243,7 @@ class ClockensteinDaemon:
         uid = ":".join((event.get("provider", "local"),
                         event.get("account_id", "local"),
                         event.get("calendar_id", ""), event["uid"]))
-        return (uid, event.get("calendar_color", "#2aa198"),
+        return (uid, event.get("calendar_color", DEFAULT_COLOR),
                 event.get("summary", ""), all_day,
                 int(start.timestamp()), int(end.timestamp()), 0)
 
@@ -291,7 +291,7 @@ class ClockensteinDaemon:
             (uid, event.get("summary", ""), event.get("location", ""),
              event.get("description", ""),
              event.get("calendar_name", ""),
-             event.get("calendar_color", "#2aa198"),
+             event.get("calendar_color", DEFAULT_COLOR),
              int(_event_start(event, self.timezone).timestamp()), bool(event.get("all_day"))),
         )
         self._log(f"Emitting Reminder for {uid}")

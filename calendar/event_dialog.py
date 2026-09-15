@@ -6,6 +6,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Pango
 from xapp.util import l10n
+from clockenstein import DEFAULT_COLOR
 
 _ = l10n("clockenstein")
 
@@ -183,7 +184,7 @@ class EventDialog(Gtk.Dialog):
             provider = cal.get("provider", "local")
             owner = _("Local") if provider == "local" else cal.get("account_name", cal.get("account_id", "Google"))
             self.calendar_model.append([
-                cal.get("color", cal.get("calendar_color", "#2aa198")),
+                cal.get("color", cal.get("calendar_color", DEFAULT_COLOR)),
                 f"{cal.get('name', cal.get('calendar_name', _('Calendar')))} — {owner}",
             ])
         self.calendar_combo = Gtk.ComboBox.new_with_model(self.calendar_model)

@@ -1,11 +1,12 @@
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk
+from clockenstein import DEFAULT_COLOR
 
 def apply_tinted_event_color(widget, event, show_accent=True):
     """Apply an opaque calendar-color tint and optional left accent."""
     rgba = Gdk.RGBA()
-    if not rgba.parse(event.get("calendar_color", "#2aa198")):
+    if not rgba.parse(event.get("calendar_color", DEFAULT_COLOR)):
         return
     red = round(rgba.red * 255)
     green = round(rgba.green * 255)

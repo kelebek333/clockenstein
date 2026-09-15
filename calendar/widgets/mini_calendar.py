@@ -10,6 +10,7 @@ _ = l10n("clockenstein")
 
 from clockenstein.formatting import capitalize_first, ordered_weekday_names, start_of_week
 from clockenstein.drawing import draw_circle
+from store import DEFAULT_COLOR
 
 
 class MiniCalendar(Gtk.Box):
@@ -219,7 +220,7 @@ class MiniCalendar(Gtk.Box):
             day = max(start, month_start - datetime.timedelta(days=7))
             while day <= end and day <= month_start + datetime.timedelta(days=42):
                 colors = result.setdefault(day, [])
-                color = event.get("calendar_color", "#3584e4")
+                color = event.get("calendar_color", DEFAULT_COLOR)
                 if color not in colors and len(colors) < 4:
                     colors.append(color)
                 day += datetime.timedelta(days=1)

@@ -13,7 +13,7 @@ from event_dialog import EventDialog
 from preferences import PreferencesDialog
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
 from clockenstein import (AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH,
-                          SETTINGS_SCHEMA)
+                          DEFAULT_COLOR, SETTINGS_SCHEMA)
 from clockenstein.drawing import draw_centered_circle
 from clockenstein.formatting import (capitalize_first, format_time, resolve_first_weekday,
                         start_of_week)
@@ -427,7 +427,7 @@ class MainWindow(Gtk.Window):
             swatch.set_valign(Gtk.Align.START)
             swatch.set_margin_top(4)
             rgba = Gdk.RGBA()
-            rgba.parse(event.get("calendar_color", "#2aa198"))
+            rgba.parse(event.get("calendar_color", DEFAULT_COLOR))
             swatch.connect("draw", draw_centered_circle, rgba)
             content.pack_start(swatch, False, False, 0)
         labels = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -677,7 +677,7 @@ class MainWindow(Gtk.Window):
         swatch = Gtk.DrawingArea()
         swatch.set_size_request(12, 12)
         rgba = Gdk.RGBA()
-        rgba.parse(cal.get("color", "#2aa198"))
+        rgba.parse(cal.get("color", DEFAULT_COLOR))
         swatch.connect("draw", draw_centered_circle, rgba)
         content.pack_start(swatch, False, False, 0)
         name = Gtk.Label(label=cal["name"])
@@ -753,7 +753,7 @@ class MainWindow(Gtk.Window):
         name.set_text(cal["name"])
         color = Gtk.ColorButton()
         rgba = Gdk.RGBA()
-        rgba.parse(cal.get("color", "#2aa198"))
+        rgba.parse(cal.get("color", DEFAULT_COLOR))
         color.set_rgba(rgba)
         box.pack_start(Gtk.Label(label=_("Name"), xalign=0), False, False, 0)
         box.pack_start(name, False, False, 0)
@@ -865,7 +865,7 @@ class MainWindow(Gtk.Window):
         name = Gtk.Entry()
         color = Gtk.ColorButton()
         rgba = Gdk.RGBA()
-        rgba.parse("#2aa198")
+        rgba.parse(DEFAULT_COLOR)
         color.set_rgba(rgba)
         box.pack_start(Gtk.Label(label=_("Name"), xalign=0), False, False, 0)
         box.pack_start(name, False, False, 0)

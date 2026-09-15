@@ -9,6 +9,7 @@ from typing import Optional
 from gi.repository import Gio, GLib
 from icalendar import Calendar, Event
 from xapp.util import l10n
+from clockenstein import DEFAULT_COLOR
 
 _ = l10n("clockenstein")
 
@@ -16,9 +17,6 @@ _ = l10n("clockenstein")
 def _data_dir() -> Path:
     override = os.environ.get("CLOCKENSTEIN_DATA_DIR")
     return Path(override) if override else Path.home() / ".local" / "share" / "clockenstein"
-
-
-DEFAULT_COLOR = "#2aa198"
 
 
 def watch_timezone_changes(callback):

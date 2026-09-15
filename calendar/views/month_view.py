@@ -10,6 +10,7 @@ _ = l10n("clockenstein")
 
 from clockenstein.formatting import format_time, ordered_weekday_names, start_of_week
 from clockenstein.drawing import draw_centered_circle
+from clockenstein import DEFAULT_COLOR
 from views.colors import apply_tinted_event_color
 
 EVENT_HEIGHT = 22
@@ -302,7 +303,7 @@ class _SpanPill(Gtk.EventBox):
             dot.set_size_request(12, 12)
             dot.set_valign(Gtk.Align.CENTER)
             rgba = Gdk.RGBA()
-            rgba.parse(event.get("calendar_color", "#2aa198"))
+            rgba.parse(event.get("calendar_color", DEFAULT_COLOR))
             dot.connect("draw", draw_centered_circle, rgba)
             content.pack_start(dot, False, False, 0)
 

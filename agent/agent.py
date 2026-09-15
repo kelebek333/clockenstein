@@ -16,7 +16,7 @@ from gi.repository import Gdk, Gio, GLib, GSound, Gtk, Pango
 from xapp.threading import run_idle
 from xapp.util import l10n
 from clockenstein import (AGENT_BUS_NAME, BUS_INTERFACE, BUS_NAME, BUS_PATH,
-                          SETTINGS_SCHEMA)
+                          DEFAULT_COLOR, SETTINGS_SCHEMA)
 from clockenstein.alarms import DEFAULT_SOUND
 from clockenstein.drawing import draw_centered_circle
 
@@ -248,7 +248,7 @@ class NotificationAgent:
         )
         accent_rgba = Gdk.RGBA()
         if not accent_rgba.parse(calendar_color):
-            accent_rgba.parse("#2aa198")
+            accent_rgba.parse(DEFAULT_COLOR)
 
         if calendar_name:
             content.pack_start(
@@ -530,7 +530,7 @@ def _calendar_detail_row(name, color):
     swatch.set_size_request(16, 16)
     rgba = Gdk.RGBA()
     if not rgba.parse(color):
-        rgba.parse("#2aa198")
+        rgba.parse(DEFAULT_COLOR)
     swatch.connect("draw", draw_centered_circle, rgba)
     row.pack_start(swatch, False, False, 0)
     label = Gtk.Label(label=name, xalign=0)
