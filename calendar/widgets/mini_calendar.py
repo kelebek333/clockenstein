@@ -8,7 +8,7 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from clockenstein.formatting import ordered_weekday_names, start_of_week
+from clockenstein.formatting import capitalize_first, ordered_weekday_names, start_of_week
 
 
 class MiniCalendar(Gtk.Box):
@@ -100,7 +100,7 @@ class MiniCalendar(Gtk.Box):
         self._render()
 
     def _show_months(self, _button):
-        values = [(month, _capitalize_first(datetime.date(2024, month, 1).strftime("%B")))
+        values = [(month, capitalize_first(datetime.date(2024, month, 1).strftime("%B")))
                   for month in range(1, 13)]
         self._show_selector(_("Select Month"), "month", values, self.date.month)
 
@@ -170,7 +170,7 @@ class MiniCalendar(Gtk.Box):
         self.on_date_selected(date)
 
     def _render(self):
-        self.month_label.set_text(_capitalize_first(self.date.strftime("%B")))
+        self.month_label.set_text(capitalize_first(self.date.strftime("%B")))
         self.year_label.set_text(str(self.date.year))
         for child in self.weeks_box.get_children():
             self.weeks_box.remove(child)
@@ -223,11 +223,6 @@ class MiniCalendar(Gtk.Box):
                     colors.append(color)
                 day += datetime.timedelta(days=1)
         return result
-
-
-def _capitalize_first(text):
-    return text[:1].upper() + text[1:]
-
 
 class _EventDots(Gtk.DrawingArea):
     def __init__(self, colors):

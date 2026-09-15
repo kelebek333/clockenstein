@@ -582,15 +582,6 @@ class NotificationAgent:
             print(f"clockenstein-notification-agent: {message}", flush=True)
 
 
-def _notification_body(start_timestamp, _all_day, location, description="", now=None):
-    body = _relative_start_label(start_timestamp, now)
-    if location:
-        body = f"{body}\n{location}"
-    if description:
-        body = f"{body}\n\n{description}"
-    return body
-
-
 def _detail_row(icon_name, text, prominent=False, dim=False, max_lines=0):
     row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     image = Gtk.Image.new_from_icon_name(icon_name, Gtk.IconSize.BUTTON)

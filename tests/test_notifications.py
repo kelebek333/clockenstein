@@ -52,14 +52,6 @@ class NotificationSchedulerTests(unittest.TestCase):
         self.assertEqual(DAEMON._due_notifications(
             [event], trigger, trigger + datetime.timedelta(seconds=30), 15, tz), [])
 
-    def test_reminder_uses_relative_start_time(self):
-        now = datetime.datetime.now().astimezone().replace(microsecond=0)
-        body = AGENT._notification_body(
-            int((now + datetime.timedelta(minutes=10)).timestamp()),
-            False, "Meeting room", "Bring notes", now=now
-        )
-        self.assertEqual(body, "Starts in 10 minutes\nMeeting room\n\nBring notes")
-
     def test_relative_start_time_updates_after_event_begins(self):
         now = datetime.datetime.now().astimezone().replace(microsecond=0)
         start = int((now - datetime.timedelta(minutes=3)).timestamp())

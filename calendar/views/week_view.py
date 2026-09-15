@@ -11,13 +11,12 @@ _ = l10n("clockenstein")
 from clockenstein.formatting import WEEKDAY_NAMES, format_time, start_of_week
 from views.colors import apply_tinted_event_color
 from views.month_view import _event_has_ended, _event_tooltip
-from views.day_view import (ALL_DAY_EVENT_MARGIN, ALL_DAY_HEIGHT,
+from views.day_view import (ALL_DAY_EVENT_MARGIN, ALL_DAY_HEIGHT, HOUR_HEIGHT,
                             DAY_END_MINUTE, DAY_START_MINUTE,
                             _assign_event_columns, _draw_day_grid, _draw_now_line,
                             _minute_to_y,
                             _initial_scroll_minute, _timed_segment_minutes)
 
-HOUR_HEIGHT = 48
 START_HOUR  = 0
 END_HOUR    = 24
 
@@ -472,17 +471,3 @@ def _draw_day_separator(widget, cr):
     cr.line_to(width - 0.5, height)
     cr.stroke()
     return False
-
-
-def _draw_grid(widget, cr):
-    return _draw_day_grid(widget, cr)
-
-
-def _to_y(t: datetime.time) -> int:
-    return int(((t.hour - START_HOUR) * 60 + t.minute) / 60 * HOUR_HEIGHT)
-
-
-def _time_span_minutes(start, end):
-    start_minutes = start.hour * 60 + start.minute
-    end_minutes = end.hour * 60 + end.minute
-    return max(30, end_minutes - start_minutes)
