@@ -162,7 +162,9 @@ class MonthView(Gtk.Box):
                 else:
                     day = segment_start
                     while day <= segment_end:
-                        hidden_by_date[day] = hidden_by_date.get(day, 0) + 1
+                        hidden_by_date.setdefault(day, []).append(
+                            str(event.get("summary") or _("Untitled"))
+                        )
                         day += datetime.timedelta(days=1)
                 segment_start = segment_end + datetime.timedelta(days=1)
 
@@ -171,7 +173,7 @@ class MonthView(Gtk.Box):
             for col in range(7):
                 index = row * 7 + col
                 day = grid_start + datetime.timedelta(days=index)
-                self.cells[index].set_event_space(reserved, hidden_by_date.get(day, 0))
+                self.cells[index].set_event_space(reserved, hidden_by_date.get(day, []))
 
     def _on_size_allocate(self, _widget, _allocation):
         if self._lane_reflow_source is None:
@@ -235,13 +237,14 @@ class _DayCell(Gtk.EventBox):
         self.ev_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         outer.pack_start(self.ev_box, True, True, 0)
 
-    def set_event_space(self, pixels, hidden):
+    def set_event_space(self, pixels, hidden_events):
         self.span_space.set_size_request(-1, pixels)
         for child in self.ev_box.get_children():
             self.ev_box.remove(child)
-        if hidden:
-            more = Gtk.Label(label=_("+%d more") % hidden)
+        if hidden_events:
+            more = Gtk.Label(label=_("+%d more") % len(hidden_events))
             more.set_xalign(0)
+            more.set_tooltip_text("\n".join(hidden_events))
             more.get_style_context().add_class("clockenstein-more-label")
             self.ev_box.pack_start(more, False, False, 0)
 
