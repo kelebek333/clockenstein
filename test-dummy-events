@@ -3,7 +3,6 @@ import datetime
 import subprocess
 import sys
 import time
-import uuid
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -19,6 +18,9 @@ sys.path.insert(0, str(ROOT / "calendar"))
 from clockenstein.alarms import AlarmStore
 from clockenstein import BUS_INTERFACE, BUS_NAME, BUS_PATH, SETTINGS_SCHEMA
 from store import CalendarManager
+
+TEST_ALARM_LABEL = "Clockenstein test alarm"
+TEST_REMINDER_UID = "clockenstein-test-reminder"
 
 def daemon_ready():
     connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
@@ -44,23 +46,24 @@ def notify_daemon(method):
     except GLib.Error as error:
         raise SystemExit(f"Could not contact the Clockenstein daemon: {error.message}")
 
-def create_alarm(timezone, trigger):
+def create_alarm(trigger):
     AlarmStore().create({
         "time": trigger.strftime("%H:%M"),
         "date": trigger.date().isoformat(),
-        "label": "Test alarm",
+        "label": TEST_ALARM_LABEL,
+        "sound": "/usr/share/clockenstein/sounds/notification.oga",
         "sound_interval": 3,
     })
     notify_daemon("NotifyAlarmsChanged")
 
 
-def create_reminder(timezone, trigger):
+def create_reminder(store, trigger):
     lead_minutes = Gio.Settings.new(SETTINGS_SCHEMA).get_uint(
         "reminder-minutes"
     )
     start = trigger + datetime.timedelta(minutes=lead_minutes)
-    CalendarManager(timezone).create_event({
-        "uid": f"test-reminder-{uuid.uuid4()}",
+    store.create_event({
+        "uid": TEST_REMINDER_UID,
         "summary": "Test reminder",
         "description": "Created by ./test-dummy-event",
         "all_day": False,
@@ -71,12 +74,28 @@ def create_reminder(timezone, trigger):
     })
     notify_daemon("NotifyChanged")
 
+
+def clear_generated_events(store):
+    alarms = AlarmStore()
+    for alarm in alarms.list():
+        if alarm.get("label") in ("Test alarm", TEST_ALARM_LABEL):
+            alarms.delete(alarm["id"])
+    for event in store.get_events(include_hidden=True):
+        uid = event.get("uid", "")
+        if uid.startswith("test-reminder-") or uid == TEST_REMINDER_UID:
+            store.delete_event(
+                event["uid"], event.get("calendar_id"), event.get("provider", "local"),
+                event.get("account_id"),
+            )
+
 subprocess.run(["./dummy-events.sh"], check=True)
 daemon_ready()
 timezone = ZoneInfo(GLib.TimeZone.new_local().get_identifier())
 now = datetime.datetime.now(timezone)
 trigger = now.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1)
-create_alarm(timezone, trigger)
-create_reminder(timezone, trigger)
+store = CalendarManager(timezone)
+clear_generated_events(store)
+create_alarm(trigger)
+create_reminder(store, trigger)
 
 print(f"Test events scheduled for {trigger.strftime('%H:%M')}.")
