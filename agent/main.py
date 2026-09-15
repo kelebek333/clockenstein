@@ -25,7 +25,6 @@ BUS_INTERFACE = "org.x.clockenstein.Calendar.Service"
 AGENT_BUS_NAME = "org.x.clockenstein.Calendar.NotificationAgent"
 SETTINGS_SCHEMA = "org.x.clockenstein.daemon"
 VERBOSE_KEY = "verbose"
-MUTED_KEY = "notification-muted"
 ALARM_SOUND = os.path.join(os.path.dirname(__file__), "notification.oga")
 
 
@@ -34,10 +33,6 @@ class NotificationAgent:
         self.settings = Gio.Settings.new(SETTINGS_SCHEMA)
         self.verbose = self.settings.get_boolean(VERBOSE_KEY)
         self.settings.connect(f"changed::{VERBOSE_KEY}", self._verbose_changed)
-        self.settings.connect(f"changed::{MUTED_KEY}", self._muted_changed)
-        self.muted = self.settings.get_boolean(MUTED_KEY)
-        self.mute_items = set()
-        self.updating_mute_items = False
         self.connection = None
         self.subscription_id = 0
         self.alarm_subscription_id = 0
@@ -122,42 +117,90 @@ class NotificationAgent:
         window.reminder_uid = f"alarm:{alarm_id}"
         window.sound_file = sound_file
         window.sound_interval = sound_interval
-        window.set_default_size(360, -1)
+        window.sound_limit = 10 * 60
+        window.muted = False
+        window.set_default_size(420, -1)
         window.set_resizable(False)
         window.set_position(Gtk.WindowPosition.CENTER)
         window.set_urgency_hint(True)
         window.set_keep_above(True)
         window.set_icon_name("clockenstein-clock")
 
-        header = Gtk.HeaderBar(title=_("Alarm"))
+        header = Gtk.HeaderBar()
         header.set_show_close_button(False)
+        menu_button = Gtk.MenuButton()
+        menu_button.set_image(Gtk.Image.new_from_icon_name(
+            "open-menu-symbolic", Gtk.IconSize.BUTTON
+        ))
+        menu = Gtk.Menu()
+        mute = Gtk.CheckMenuItem.new_with_label(_("Mute"))
+        mute.connect("toggled", self._mute_toggled, window)
+        menu.append(mute)
+        menu.show_all()
+        menu_button.set_popup(menu)
+        header.pack_start(menu_button)
+        title = Gtk.Label(xalign=0)
+        title.set_markup(
+            f'<span size="x-large" weight="bold">{GLib.markup_escape_text(label)}</span>'
+        )
+        title.set_line_wrap(True)
+        header.set_custom_title(title)
         window.sound_icon = Gtk.Image.new_from_icon_name(
             "audio-volume-high-symbolic", Gtk.IconSize.BUTTON
         )
         window.sound_icon.set_no_show_all(True)
+        window.sound_icon.set_margin_end(12)
         header.pack_end(window.sound_icon)
+        header_css = Gtk.CssProvider()
+        header_css.load_from_data(b"""
+            headerbar {
+                background-color: @theme_bg_color;
+                background-image: none;
+                border: none;
+                box-shadow: none;
+            }
+        """)
+        header.get_style_context().add_provider(
+            header_css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
         window.set_titlebar(header)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         content.set_border_width(18)
         window.add(content)
-        title = Gtk.Label(xalign=0.5)
-        title.set_markup(
-            f'<span size="xx-large" weight="bold">{GLib.markup_escape_text(label)}</span>'
-        )
-        title.set_line_wrap(True)
-        content.pack_start(title, False, False, 0)
         when = datetime.datetime.fromtimestamp(trigger).strftime("%H:%M")
-        content.pack_start(Gtk.Label(label=when, xalign=0.5), False, False, 0)
+        time_row, _time_label = _detail_row(
+            "xsi-alarm-symbolic", when, prominent=True
+        )
+        content.pack_start(time_row, False, False, 0)
+
+        accent = Gtk.DrawingArea()
+        accent.set_size_request(-1, 2)
+        accent.set_margin_top(4)
+        accent.connect("draw", _draw_calendar_accent, _theme_accent_color(accent))
+        content.pack_start(accent, False, False, 0)
 
         buttons = Gtk.ButtonBox(orientation=Gtk.Orientation.HORIZONTAL)
         buttons.set_layout(Gtk.ButtonBoxStyle.END)
+        buttons.set_halign(Gtk.Align.END)
+        buttons.set_margin_top(6)
         buttons.set_spacing(6)
+        open_clocks_button = Gtk.Button()
+        open_clocks_button.set_image(Gtk.Image.new_from_icon_name(
+            "xsi-alarm-symbolic", Gtk.IconSize.BUTTON
+        ))
+        open_clocks_button.set_tooltip_text(_("Open Clocks"))
+        open_clocks_button.connect("clicked", self._open_clocks)
         snooze = Gtk.MenuButton()
-        snooze.add(Gtk.Label(label=_("Snooze")))
+        snooze_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        snooze_content.pack_start(Gtk.Label(label=_("Snooze")), False, False, 0)
+        snooze_content.pack_start(Gtk.Image.new_from_icon_name(
+            "xsi-pan-down-symbolic", Gtk.IconSize.MENU
+        ), False, False, 0)
+        snooze.add(snooze_content)
         snooze.get_style_context().add_class("suggested-action")
         menu = Gtk.Menu()
-        for minutes in (5, 10, 15):
+        for minutes in (1, 5, 10):
             item = Gtk.MenuItem.new_with_label(
                 gettext.ngettext("%d minute", "%d minutes", minutes) % minutes
             )
@@ -168,11 +211,11 @@ class NotificationAgent:
         dismiss = Gtk.Button.new_with_label(_("Dismiss"))
         dismiss.get_style_context().add_class("destructive-action")
         dismiss.connect("clicked", self._dismiss_alarm, window, alarm_id)
+        buttons.add(open_clocks_button)
         buttons.add(snooze)
         buttons.add(dismiss)
         content.pack_start(buttons, False, False, 0)
 
-        window.mute_item = None
         window.fade_timer_id = 0
         window.relative_timer_id = 0
         self.windows.add(window)
@@ -180,7 +223,7 @@ class NotificationAgent:
         self._present_window(window)
         if sound_file:
             self._start_sound_loop(window, window.reminder_uid, sound_file,
-                                   sound_interval)
+                                   sound_interval, window.sound_limit)
         return GLib.SOURCE_REMOVE
 
     def _snooze_alarm(self, _item, window, alarm_id, minutes):
@@ -198,6 +241,8 @@ class NotificationAgent:
         window = Gtk.Window(title=APPLICATION_NAME)
         window.reminder_uid = uid
         window.sound_file = ALARM_SOUND
+        window.sound_limit = 2 * 60
+        window.muted = False
         window.set_default_size(420, -1)
         window.set_resizable(False)
         window.set_position(Gtk.WindowPosition.CENTER)
@@ -213,9 +258,7 @@ class NotificationAgent:
         ))
         menu = Gtk.Menu()
         mute = Gtk.CheckMenuItem.new_with_label(_("Mute"))
-        mute.set_active(self.muted)
-        mute.connect("toggled", self._mute_toggled)
-        self.mute_items.add(mute)
+        mute.connect("toggled", self._mute_toggled, window)
         menu.append(mute)
         menu.show_all()
         menu_button.set_popup(menu)
@@ -342,8 +385,6 @@ class NotificationAgent:
             GLib.source_remove(window.relative_timer_id)
             window.relative_timer_id = 0
         self._stop_sound_loop(window)
-        if window.mute_item:
-            self.mute_items.discard(window.mute_item)
         self.windows.discard(window)
         self._log(f"Dismissed reminder for {window.reminder_uid}")
 
@@ -361,7 +402,8 @@ class NotificationAgent:
             self._log(f"Showing snoozed reminder for {uid}")
             self._present_window(window)
             self._start_sound_loop(window, uid, window.sound_file,
-                                   getattr(window, "sound_interval", 3))
+                                   getattr(window, "sound_interval", 3),
+                                   getattr(window, "sound_limit", 2 * 60))
         return GLib.SOURCE_REMOVE
 
     def _present_window(self, window):
@@ -432,38 +474,35 @@ class NotificationAgent:
         except GLib.Error as exc:
             self._log(f"Could not open calendar: {exc.message}")
 
-    def _mute_toggled(self, item):
-        if not self.updating_mute_items:
-            self.settings.set_boolean(MUTED_KEY, item.get_active())
+    def _open_clocks(self, _button):
+        try:
+            Gio.Subprocess.new(["clockenstein-clocks"], Gio.SubprocessFlags.NONE)
+        except GLib.Error as exc:
+            self._log(f"Could not open Clocks: {exc.message}")
 
-    def _muted_changed(self, settings, _key):
-        self.muted = settings.get_boolean(MUTED_KEY)
-        self.updating_mute_items = True
-        for item in self.mute_items:
-            item.set_active(self.muted)
-        self.updating_mute_items = False
-        if self.muted:
-            for window in list(self.sound_loops):
-                self._stop_sound_loop(window)
-            self._log("Reminder sounds muted")
-        else:
-            for window in self.windows:
-                if window.get_visible():
-                    self._start_sound_loop(
-                        window, window.reminder_uid, window.sound_file,
-                        getattr(window, "sound_interval", 3)
-                    )
-            self._log("Reminder sounds unmuted")
+    def _mute_toggled(self, item, window):
+        window.muted = item.get_active()
+        if window.muted:
+            self._stop_sound_loop(window)
+            self._log(f"Muted reminder sound for {window.reminder_uid}")
+        elif window.get_visible():
+            self._start_sound_loop(
+                window, window.reminder_uid, window.sound_file,
+                getattr(window, "sound_interval", 3),
+                getattr(window, "sound_limit", 2 * 60),
+            )
+            self._log(f"Unmuted reminder sound for {window.reminder_uid}")
 
-    def _start_sound_loop(self, window, uid, sound_file=ALARM_SOUND, sound_interval=3):
+    def _start_sound_loop(self, window, uid, sound_file=ALARM_SOUND,
+                          sound_interval=3, sound_limit=2 * 60):
         self._stop_sound_loop(window)
-        if self.muted:
+        if window.muted:
             return
         if not os.path.exists(sound_file):
             self._log(f"Alarm sound not found: {sound_file}")
             return
         cancellable = Gio.Cancellable()
-        timeout_id = GLib.timeout_add_seconds(2 * 60, self._sound_limit, window, uid)
+        timeout_id = GLib.timeout_add_seconds(sound_limit, self._sound_limit, window, uid)
         self.sound_loops[window] = {
             "cancellable": cancellable,
             "limit_id": timeout_id,
@@ -471,6 +510,7 @@ class NotificationAgent:
             "pulse_id": 0,
             "sound_file": sound_file,
             "sound_interval": sound_interval,
+            "sound_limit": sound_limit,
         }
         self._play_sound_iteration(window)
         self._log(f"Started alarm sound loop for {uid}")
@@ -557,7 +597,8 @@ class NotificationAgent:
             state["cancellable"].cancel()
             if state["replay_id"]:
                 GLib.source_remove(state["replay_id"])
-            self._log(f"Stopped alarm sound for {uid} after 2 minutes")
+            minutes = state["sound_limit"] // 60
+            self._log(f"Stopped alarm sound for {uid} after {minutes} minutes")
         return GLib.SOURCE_REMOVE
 
     def _log(self, message):
@@ -632,6 +673,14 @@ def _draw_calendar_accent(widget, cr, rgba):
     Gdk.cairo_set_source_rgba(cr, rgba)
     cr.fill()
     return False
+
+
+def _theme_accent_color(widget):
+    context = widget.get_style_context()
+    found, color = context.lookup_color("theme_selected_bg_color")
+    if found:
+        return color
+    return context.get_background_color(Gtk.StateFlags.SELECTED)
 
 
 def _relative_start_label(start_timestamp, now=None):
