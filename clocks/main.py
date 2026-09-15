@@ -29,6 +29,7 @@ _ = l10n("clockenstein")
 BUS_NAME = "org.x.clockenstein.Calendar.Service"
 BUS_PATH = "/org/x/clockenstein/Calendar/Service"
 BUS_INTERFACE = "org.x.clockenstein.Calendar.Service"
+AGENT_BUS_NAME = "org.x.clockenstein.Calendar.NotificationAgent"
 
 
 def _locale_weekday_initials():
@@ -132,6 +133,14 @@ class ClocksWindow(Gtk.ApplicationWindow):
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.add(self.list_box)
         layout = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.service_warning = Gtk.InfoBar()
+        self.service_warning.set_message_type(Gtk.MessageType.WARNING)
+        self.service_warning.set_no_show_all(True)
+        self.service_warning_label = Gtk.Label(xalign=0)
+        self.service_warning_label.set_line_wrap(True)
+        self.service_warning.get_content_area().add(self.service_warning_label)
+        self.service_warning_label.show()
+        layout.pack_start(self.service_warning, False, False, 0)
         self.next_alarm_label = Gtk.Label(xalign=0.5)
         self.next_alarm_label.get_style_context().add_class("clockenstein-next-alarm")
         self.next_alarm_label.set_no_show_all(True)
@@ -141,8 +150,13 @@ class ClocksWindow(Gtk.ApplicationWindow):
         layout.pack_start(scroll, True, True, 0)
         self.add(layout)
         self.order_refresh_source = 0
+        self.service_status_source = 0
         self.refresh()
         self._schedule_order_refresh()
+        self._update_service_warning()
+        self.service_status_source = GLib.timeout_add_seconds(
+            5, self._update_service_warning
+        )
 
     def _destroyed(self, _window):
         if self.subscription:
@@ -151,6 +165,9 @@ class ClocksWindow(Gtk.ApplicationWindow):
         if self.order_refresh_source:
             GLib.source_remove(self.order_refresh_source)
             self.order_refresh_source = 0
+        if self.service_status_source:
+            GLib.source_remove(self.service_status_source)
+            self.service_status_source = 0
 
     def _schedule_order_refresh(self):
         now = datetime.datetime.now()
@@ -162,6 +179,30 @@ class ClocksWindow(Gtk.ApplicationWindow):
         self.refresh()
         self._schedule_order_refresh()
         return GLib.SOURCE_REMOVE
+
+    def _service_is_running(self, name):
+        try:
+            result = self.connection.call_sync(
+                "org.freedesktop.DBus", "/org/freedesktop/DBus",
+                "org.freedesktop.DBus", "NameHasOwner", GLib.Variant("(s)", (name,)),
+                GLib.VariantType.new("(b)"), Gio.DBusCallFlags.NONE, 1000, None,
+            )
+            return result.unpack()[0]
+        except GLib.Error:
+            return False
+
+    def _update_service_warning(self):
+        daemon_running = self._service_is_running(BUS_NAME)
+        if not daemon_running:
+            message = _("The Clockenstein daemon is not running.")
+        elif not self._service_is_running(AGENT_BUS_NAME):
+            message = _("The notification agent is not running.")
+        else:
+            self.service_warning.hide()
+            return GLib.SOURCE_CONTINUE
+        self.service_warning_label.set_text(message + "\n" + _("Alarms will not ring."))
+        self.service_warning.show()
+        return GLib.SOURCE_CONTINUE
 
     def _alarms_changed(self, *_args):
         self.refresh()
