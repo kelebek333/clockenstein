@@ -404,7 +404,6 @@ class NotificationAgent:
 
     def _present_window(self, window):
         window.show_all()
-        self._place_on_active_monitor(window)
         settings = Gtk.Settings.get_default()
         if settings and settings.get_property("gtk-enable-animations"):
             window.set_opacity(0.0)
@@ -424,24 +423,6 @@ class NotificationAgent:
             window.fade_timer_id = 0
             return GLib.SOURCE_REMOVE
         return GLib.SOURCE_CONTINUE
-
-    @staticmethod
-    def _place_on_active_monitor(window):
-        display = Gdk.Display.get_default()
-        seat = display.get_default_seat() if display else None
-        pointer = seat.get_pointer() if seat else None
-        if not pointer:
-            return
-        _screen, x, y = pointer.get_position()
-        monitor = display.get_monitor_at_point(x, y)
-        if monitor is None:
-            return
-        geometry = monitor.get_workarea()
-        width, height = window.get_size()
-        window.move(
-            geometry.x + max(0, (geometry.width - width) // 2),
-            geometry.y + max(0, (geometry.height - height) // 2),
-        )
 
     def _update_relative_time(self, window):
         if window not in self.windows:
