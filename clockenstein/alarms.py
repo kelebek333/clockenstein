@@ -126,6 +126,9 @@ def due_alarms(alarms, since, until, timezone):
             dates = [since.date(), until.date()]
         for date in sorted(set(dates)):
             trigger = datetime.datetime.combine(date, time, timezone)
+            if (alarm.get("last_fired") is not None
+                    and trigger.timestamp() <= alarm["last_fired"]):
+                continue
             if since < trigger <= until:
                 due.append((alarm, trigger))
                 break
