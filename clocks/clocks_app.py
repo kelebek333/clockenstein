@@ -77,9 +77,26 @@ def _next_alarm_label(alarms):
     if not triggers:
         return None
     next_trigger = min(triggers)
-    if next_trigger - now > datetime.timedelta(days=1):
+    seconds = (next_trigger - now).total_seconds()
+
+    # Detect if there's a change of summer/winter time between now and the next trigger
+    # If there is, it can affect the calculation
+    time_change_involved = (
+        next_trigger.timestamp() - now.timestamp() != seconds
+        or datetime.datetime.fromtimestamp(next_trigger.timestamp()) != next_trigger
+    )
+    if time_change_involved:
+        # If clocks jump past the alarm time, count down to the end of the jump.
+        while datetime.datetime.fromtimestamp(next_trigger.timestamp()) != next_trigger:
+            next_trigger += datetime.timedelta(minutes=1)
+        # If clocks have already gone back, interpret the alarm time as its second
+        # occurrence too, so it isn't mistaken for a time that has already passed.
+        if next_trigger.date() == now.date():
+            next_trigger = next_trigger.replace(fold=now.fold)
+        seconds = next_trigger.timestamp() - now.timestamp()
+    if seconds > 24 * 60 * 60:
         return None
-    minutes = max(1, int((next_trigger - now).total_seconds() + 59) // 60)
+    minutes = max(1, int(seconds + 59) // 60)
     hours, minutes = divmod(minutes, 60)
     parts = []
     if hours:
