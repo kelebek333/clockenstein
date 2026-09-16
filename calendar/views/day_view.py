@@ -191,11 +191,13 @@ class DayView(Gtk.Box):
         self.background.set_size_request(timeline_width, DAY_HEIGHT)
 
         self.show_all()
-        scroll_minute = _initial_scroll_minute(
-            day_events, (current_date,), current_date == self.today
-        )
-        GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
-                      _minute_to_y(scroll_minute))
+        if getattr(self, "_scroll_date", None) != current_date:
+            self._scroll_date = current_date
+            scroll_minute = _initial_scroll_minute(
+                day_events, (current_date,), current_date == self.today
+            )
+            GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
+                          _minute_to_y(scroll_minute))
         self._position_event_widgets(self.event_layer, self.event_layer.get_allocation())
         self._update_now_line()
 

@@ -195,9 +195,11 @@ class WeekView(Gtk.Box):
             )
 
         self.show_all()
-        scroll_minute = _initial_scroll_minute(events, week, self._shows_today)
-        GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
-                      _minute_to_y(scroll_minute))
+        if getattr(self, "_scroll_week", None) != start:
+            self._scroll_week = start
+            scroll_minute = _initial_scroll_minute(events, week, self._shows_today)
+            GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
+                          _minute_to_y(scroll_minute))
         self._update_now_line()
 
     def set_first_weekday(self, first_weekday):
