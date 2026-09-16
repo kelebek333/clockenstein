@@ -130,9 +130,9 @@ class LocalStore:
                       if item["id"] == calendar_id), None)
         if index is None:
             raise KeyError(_("Unknown calendar %s") % calendar_id)
-        self._path(calendar_id).unlink(missing_ok=True)
         del self._registry[index]
         self._save_registry()
+        self._path(calendar_id).unlink(missing_ok=True)
 
     def get_events(self, start=None, end=None, include_hidden=False) -> list[dict]:
         results = []
