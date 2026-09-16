@@ -199,10 +199,10 @@ class MainWindow(Gtk.Window):
             self.view_buttons[name] = button
         header.set_custom_title(view_box)
 
-        new_button = Gtk.Button.new_from_icon_name("xsi-list-add-symbolic", Gtk.IconSize.BUTTON)
-        new_button.set_tooltip_text(_("New event (Ctrl+N)"))
-        new_button.connect("clicked", lambda _: self._new_event())
-        header.pack_end(new_button)
+        self.new_button = Gtk.Button.new_from_icon_name("xsi-list-add-symbolic", Gtk.IconSize.BUTTON)
+        self.new_button.set_tooltip_text(_("New event (Ctrl+N)"))
+        self.new_button.connect("clicked", lambda _: self._new_event())
+        header.pack_end(self.new_button)
         self.spinner = Gtk.Spinner()
         self.spinner.set_no_show_all(True)
         self.spinner.hide()
@@ -1118,16 +1118,35 @@ class MainWindow(Gtk.Window):
             self.settings.set_int("calendar-window-height", height)
 
     def _on_event_activated(self, event):
-        dialog = EventDialog(self, store=self.store, event=event, time_format=self.time_format)
+        calendars = self._get_editable_calendars(event)
+        editable = event.get("editable", True) and any(
+            cal["id"] == event["calendar_id"] for cal in calendars
+        )
+        event = {**event, "editable": editable}
+        if not editable:
+            calendars = [event]
+        dialog = EventDialog(self, store=self.store, event=event,
+                             calendar_options=calendars, time_format=self.time_format)
         if dialog.run() in (Gtk.ResponseType.OK, Gtk.ResponseType.REJECT):
             notify_changed()
             self._refresh(refresh_remote=False)
         dialog.destroy()
 
-    def _new_event(self, default_date=None):
-        calendars = self.store.writable_calendars()
+    def _get_editable_calendars(self, event=None):
+        calendars = [cal for cal in self.store.writable_calendars()
+                     if cal.get("visible", True)]
         if self._refreshing:
             calendars = [cal for cal in calendars if cal["provider"] == "local"]
+        if event is not None:
+            calendars = [cal for cal in calendars
+                         if cal.get("provider") == event.get("provider")
+                         and cal.get("account_id") == event.get("account_id")]
+        return calendars
+
+    def _new_event(self, default_date=None):
+        calendars = self._get_editable_calendars()
+        if not calendars:
+            return
         selected_date = (self._month_selected_date if self._active_view == "Month" else
                          self._week_selected_date if self._active_view == "Week" else
                          self.current_date)
@@ -1245,6 +1264,7 @@ class MainWindow(Gtk.Window):
     def _set_refreshing(self, active):
         changed = active != self._refreshing
         self._refreshing = active
+        self.new_button.set_sensitive(bool(self._get_editable_calendars()))
         if active:
             self.spinner.show()
             self.spinner.start()
@@ -1273,6 +1293,7 @@ class MainWindow(Gtk.Window):
         return events
 
     def _update_views(self):
+        self.new_button.set_sensitive(bool(self._get_editable_calendars()))
         start, end = self._date_range()
         all_events = self._available_events()
         events = [event for event in all_events

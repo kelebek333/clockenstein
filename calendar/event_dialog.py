@@ -87,9 +87,9 @@ class EventDialog(Gtk.Dialog):
         self,
         parent: Gtk.Window,
         store: CalendarManager,
+        calendar_options: list,
         event: Optional[dict] = None,
         default_date: Optional[datetime.date] = None,
-        calendar_options: Optional[list] = None,
         time_format="locale",
     ):
         is_new = event is None
@@ -106,17 +106,7 @@ class EventDialog(Gtk.Dialog):
         self.use_12_hour = _uses_12_hour_clock(time_format)
         self._populating = True
         self._adjusting_end = False
-        if is_new:
-            self.calendar_options = (calendar_options if calendar_options is not None
-                                     else store.writable_calendars())
-        elif editable:
-            self.calendar_options = [
-                calendar for calendar in store.writable_calendars()
-                if calendar.get("provider") == self.event.get("provider")
-                and calendar.get("account_id") == self.event.get("account_id")
-            ] or [self.event]
-        else:
-            self.calendar_options = [self.event]
+        self.calendar_options = calendar_options
 
         self.set_default_size(420, -1)
         self.add_button(_("Cancel") if editable else _("Close"), Gtk.ResponseType.CANCEL)
