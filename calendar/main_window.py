@@ -170,16 +170,16 @@ class MainWindow(Gtk.Window):
         menu.append(about_item)
         menu.show_all()
         menu_button = Gtk.MenuButton()
-        menu_button.set_image(Gtk.Image.new_from_icon_name("open-menu-symbolic", Gtk.IconSize.BUTTON))
+        menu_button.set_image(Gtk.Image.new_from_icon_name("xsi-open-menu-symbolic", Gtk.IconSize.BUTTON))
         menu_button.set_tooltip_text(_("Main menu"))
         menu_button.set_popup(menu)
         header.pack_start(menu_button)
 
         nav = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         nav.get_style_context().add_class("linked")
-        for icon, callback in (("go-previous-symbolic", lambda _: self._navigate(-1)),
+        for icon, callback in (("xsi-go-previous-symbolic", lambda _: self._navigate(-1)),
                                (None, lambda _: self._go_today()),
-                               ("go-next-symbolic", lambda _: self._navigate(1))):
+                               ("xsi-go-next-symbolic", lambda _: self._navigate(1))):
             button = (Gtk.Button.new_from_icon_name(icon, Gtk.IconSize.BUTTON)
                       if icon else Gtk.Button(label=_("Today")))
             button.connect("clicked", callback)
@@ -199,7 +199,7 @@ class MainWindow(Gtk.Window):
             self.view_buttons[name] = button
         header.set_custom_title(view_box)
 
-        new_button = Gtk.Button.new_from_icon_name("list-add-symbolic", Gtk.IconSize.BUTTON)
+        new_button = Gtk.Button.new_from_icon_name("xsi-list-add-symbolic", Gtk.IconSize.BUTTON)
         new_button.set_tooltip_text(_("New event (Ctrl+N)"))
         new_button.connect("clicked", lambda _: self._new_event())
         header.pack_end(new_button)
@@ -512,7 +512,7 @@ class MainWindow(Gtk.Window):
                 table.attach(status_label, 2, row, 1, 1)
             if account_id != "local":
                 disconnect = Gtk.Button.new_from_icon_name(
-                    "window-close-symbolic", Gtk.IconSize.MENU
+                    "xsi-window-close-symbolic", Gtk.IconSize.MENU
                 )
                 disconnect.set_relief(Gtk.ReliefStyle.NONE)
                 disconnect.set_tooltip_text(_("Disconnect %s") % account_id[1])
@@ -553,7 +553,7 @@ class MainWindow(Gtk.Window):
                     visibility.connect("notify::active", self._calendar_switch_toggled, cal)
                     reminders = self._calendar_reminders_toggle(cal)
                     refresh = Gtk.Button.new_from_icon_name(
-                        "view-refresh-symbolic", Gtk.IconSize.MENU
+                        "xsi-view-refresh-symbolic", Gtk.IconSize.MENU
                     )
                     refresh.set_relief(Gtk.ReliefStyle.NONE)
                     elapsed = (datetime.datetime.now().timestamp() - int(cal["last_sync"])
@@ -590,7 +590,7 @@ class MainWindow(Gtk.Window):
                     actions.set_halign(Gtk.Align.START)
                     if cal["provider"] == "local":
                         edit = Gtk.Button.new_from_icon_name(
-                            "document-edit-symbolic", Gtk.IconSize.MENU
+                            "xsi-document-edit-symbolic", Gtk.IconSize.MENU
                         )
                         edit.set_relief(Gtk.ReliefStyle.NONE)
                         edit.set_tooltip_text(_("Edit"))
@@ -598,7 +598,7 @@ class MainWindow(Gtk.Window):
                                      box.get_toplevel())
                         actions.pack_start(edit, False, False, 0)
                         remove = Gtk.Button.new_from_icon_name(
-                            "edit-delete-symbolic", Gtk.IconSize.MENU
+                            "xsi-edit-delete-symbolic", Gtk.IconSize.MENU
                         )
                         remove.set_relief(Gtk.ReliefStyle.NONE)
                         remove.set_tooltip_text(_("Remove"))
@@ -815,8 +815,8 @@ class MainWindow(Gtk.Window):
         button.set_halign(Gtk.Align.CENTER)
         button.set_valign(Gtk.Align.CENTER)
         button.set_image(Gtk.Image.new_from_icon_name(
-            "audio-volume-high-symbolic" if button.get_active()
-            else "audio-volume-muted-symbolic",
+            "xsi-audio-volume-high-symbolic" if button.get_active()
+            else "xsi-audio-volume-muted-symbolic",
             Gtk.IconSize.MENU,
         ))
         button.set_tooltip_text(_("Remind me about events in this calendar"))
@@ -826,7 +826,7 @@ class MainWindow(Gtk.Window):
     def _calendar_reminders_toggled(self, button, cal):
         enabled = button.get_active()
         button.set_image(Gtk.Image.new_from_icon_name(
-            "audio-volume-high-symbolic" if enabled else "audio-volume-muted-symbolic",
+            "xsi-audio-volume-high-symbolic" if enabled else "xsi-audio-volume-muted-symbolic",
             Gtk.IconSize.MENU,
         ))
         self.store.set_reminders(

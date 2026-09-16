@@ -117,7 +117,7 @@ class NotificationAgent:
         header.set_show_close_button(False)
         menu_button = Gtk.MenuButton()
         menu_button.set_image(Gtk.Image.new_from_icon_name(
-            "open-menu-symbolic", Gtk.IconSize.BUTTON
+            "xsi-open-menu-symbolic", Gtk.IconSize.BUTTON
         ))
         menu = Gtk.Menu()
         mute = Gtk.CheckMenuItem.new_with_label(_("Mute"))
@@ -133,7 +133,7 @@ class NotificationAgent:
         title_label.set_line_wrap(True)
         header.set_custom_title(title_label)
         window.sound_icon = Gtk.Image.new_from_icon_name(
-            "audio-volume-high-symbolic", Gtk.IconSize.BUTTON
+            "xsi-audio-volume-high-symbolic", Gtk.IconSize.BUTTON
         )
         window.sound_icon.set_no_show_all(True)
         window.sound_icon.set_margin_end(12)
@@ -171,7 +171,7 @@ class NotificationAgent:
         snooze_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         snooze_content.pack_start(Gtk.Label(label=_("Snooze")), False, False, 0)
         snooze_content.pack_start(Gtk.Image.new_from_icon_name(
-            "pan-down-symbolic", Gtk.IconSize.MENU
+            "xsi-pan-down-symbolic", Gtk.IconSize.MENU
         ), False, False, 0)
         snooze.add(snooze_content)
         snooze.get_style_context().add_class("suggested-action")
@@ -245,7 +245,7 @@ class NotificationAgent:
                 _calendar_detail_row(calendar_name, calendar_color), False, False, 0
             )
         time_row, time_label = _detail_row(
-            "preferences-system-time-symbolic", _relative_start_label(start_timestamp),
+            "xsi-time-symbolic", _relative_start_label(start_timestamp),
             prominent=True
         )
         content.pack_start(time_row, False, False, 0)
@@ -257,12 +257,12 @@ class NotificationAgent:
         )
         if location:
             location_row, _label = _detail_row(
-                "mark-location-symbolic", location, dim=True
+                "xsi-geolocation-symbolic", location, dim=True
             )
             content.pack_start(location_row, False, False, 0)
         if description:
             notes_row, _label = _detail_row(
-                "document-edit-symbolic", description, dim=True, max_lines=3
+                "xsi-document-edit-symbolic", description, dim=True, max_lines=3
             )
             content.pack_start(notes_row, False, False, 0)
 
@@ -274,7 +274,7 @@ class NotificationAgent:
 
         open_calendar_button = Gtk.Button()
         open_calendar_button.set_image(Gtk.Image.new_from_icon_name(
-            "x-office-calendar-symbolic", Gtk.IconSize.BUTTON
+            "xsi-x-office-calendar-symbolic", Gtk.IconSize.BUTTON
         ))
         open_calendar_button.set_tooltip_text(_("Open Calendar"))
         open_calendar_button.connect(
@@ -339,7 +339,7 @@ class NotificationAgent:
         if started:
             context.add_class("clockenstein-started")
             window.time_icon.set_from_icon_name(
-                "appointment-soon-symbolic", Gtk.IconSize.BUTTON
+                "xsi-appointment-soon-symbolic", Gtk.IconSize.BUTTON
             )
         else:
             context.remove_class("clockenstein-started")

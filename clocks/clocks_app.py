@@ -124,7 +124,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         self.connect("destroy", self._destroyed)
 
         header = Gtk.HeaderBar(title=_("Alarms"), show_close_button=True)
-        add = Gtk.Button.new_from_icon_name("list-add-symbolic", Gtk.IconSize.BUTTON)
+        add = Gtk.Button.new_from_icon_name("xsi-list-add-symbolic", Gtk.IconSize.BUTTON)
         add.set_tooltip_text(_("Add Alarm"))
         add.connect("clicked", self._edit_alarm, None)
         header.pack_end(add)
@@ -295,7 +295,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
                              False, False, 0)
             details.pack_start(sound, False, False, 0)
         content.pack_start(details, True, True, 0)
-        edit = Gtk.Button.new_from_icon_name("document-edit-symbolic", Gtk.IconSize.BUTTON)
+        edit = Gtk.Button.new_from_icon_name("xsi-document-edit-symbolic", Gtk.IconSize.BUTTON)
         edit.set_relief(Gtk.ReliefStyle.NONE)
         edit.set_tooltip_text(_("Edit Alarm"))
         edit.connect("clicked", self._edit_alarm, alarm)
@@ -413,7 +413,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         date_button = Gtk.MenuButton()
         date_button.set_tooltip_text(_("Choose a date"))
         date_button.add(Gtk.Image.new_from_icon_name(
-            "x-office-calendar-symbolic", Gtk.IconSize.BUTTON
+            "xsi-x-office-calendar-symbolic", Gtk.IconSize.BUTTON
         ))
         popover = Gtk.Popover.new(date_button)
         popover_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -463,7 +463,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         sound_button.connect("clicked", choose_sound)
         sound_picker = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         sound_picker.pack_start(sound_button, True, True, 0)
-        play = Gtk.Button.new_from_icon_name("media-playback-start-symbolic", Gtk.IconSize.BUTTON)
+        play = Gtk.Button.new_from_icon_name("xsi-media-playback-start-symbolic", Gtk.IconSize.BUTTON)
         play.set_tooltip_text(_("Play selected sound"))
         play.connect("clicked", self._preview_sound, selected_sound)
         sound_picker.pack_start(play, False, False, 0)

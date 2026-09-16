@@ -41,7 +41,7 @@ class MiniCalendar(Gtk.Box):
         self.year_button.get_style_context().add_class("mini-calendar-year")
         self.year_button.connect("clicked", self._show_years)
         header.pack_start(self.year_button, False, False, 0)
-        for icon, offset in (("go-previous-symbolic", -1), ("go-next-symbolic", 1)):
+        for icon, offset in (("xsi-go-previous-symbolic", -1), ("xsi-go-next-symbolic", 1)):
             button = Gtk.Button.new_from_icon_name(icon, Gtk.IconSize.MENU)
             button.set_relief(Gtk.ReliefStyle.NONE)
             button.get_style_context().add_class("mini-calendar-nav")
@@ -65,7 +65,7 @@ class MiniCalendar(Gtk.Box):
         self.stack.add_named(calendar_page, "calendar")
         selector_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         selector_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        back = Gtk.Button.new_from_icon_name("go-previous-symbolic", Gtk.IconSize.MENU)
+        back = Gtk.Button.new_from_icon_name("xsi-go-previous-symbolic", Gtk.IconSize.MENU)
         back.set_relief(Gtk.ReliefStyle.NONE)
         back.connect("clicked", lambda _button: self.stack.set_visible_child_name("calendar"))
         selector_header.pack_start(back, False, False, 0)
