@@ -319,8 +319,13 @@ def _apply_data(ev: Event, data: dict, timezone: datetime.tzinfo):
 
 def _component_to_dict(component, timezone: datetime.tzinfo) -> dict:
     dtstart = component.get("dtstart").dt
-    dtend = component.get("dtend").dt if component.get("dtend") else dtstart
     all_day = isinstance(dtstart, datetime.date) and not isinstance(dtstart, datetime.datetime)
+    if component.get("dtend") is not None:
+        dtend = component["dtend"].dt
+    elif component.get("duration") is not None:
+        dtend = dtstart + component["duration"].dt
+    else:
+        dtend = dtstart + datetime.timedelta(days=1) if all_day else dtstart
     if all_day:
         date_start, date_end = dtstart, dtend - datetime.timedelta(days=1)
         time_start = time_end = None
