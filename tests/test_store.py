@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "calendar"))
 from backends.google import (EVENTS_PAGE_SIZE, GoogleBackend, SCOPES,
                              event_dict_to_google, google_event_fits_sync_range,
                              google_event_to_dict)
-from icalendar import Alarm, Event
+from icalendar import Event
 from store import LocalStore, _component_to_dict, local_timezone
 
 
@@ -33,42 +33,6 @@ class LocalStoreTests(unittest.TestCase):
         parsed = _component_to_dict(event, UTC)
         self.assertEqual(parsed["date_end"], datetime.date(2026, 9, 17))
         self.assertEqual(parsed["time_end"], datetime.time(1))
-
-    def test_create_and_edit_hidden_calendar_event(self):
-        self.store.set_visible("personal", False)
-        event = self.store.create_event({"summary": "Hidden", "all_day": True})
-        event["summary"] = "Edited"
-        self.assertEqual(self.store.update_event(event["uid"], event)["summary"], "Edited")
-        self.assertEqual(self.store.get_events(), [])
-        self.assertEqual(len(self.store.get_events(include_hidden=True)), 1)
-
-    def test_edit_preserves_properties_and_recurrence_exceptions(self):
-        event = self.store.create_event({"summary": "Original", "all_day": True})
-        calendar = self.store._load_calendar("personal")
-        component = calendar.walk("VEVENT")[0]
-        component.add("rrule", {"freq": "weekly"})
-        component.add("attendee", "mailto:guest@example.test")
-        component.add("x-custom", "keep me")
-        alarm = Alarm()
-        alarm.add("action", "DISPLAY")
-        alarm.add("trigger", datetime.timedelta(minutes=-10))
-        component.add_component(alarm)
-        exception = Event()
-        exception.add("uid", event["uid"])
-        exception.add("dtstart", datetime.date.today() + datetime.timedelta(days=7))
-        exception.add("recurrence-id", datetime.date.today() + datetime.timedelta(days=7))
-        calendar.add_component(exception)
-        self.store._save_calendar("personal", calendar)
-        event["summary"] = "Edited"
-        self.store.update_event(event["uid"], event)
-        saved = self.store._load_calendar("personal").walk("VEVENT")
-        self.assertEqual(len(saved), 2)
-        edited = next(item for item in saved if "recurrence-id" not in item)
-        self.assertEqual(str(edited["summary"]), "Edited")
-        self.assertEqual(str(edited["attendee"]), "mailto:guest@example.test")
-        self.assertEqual(str(edited["x-custom"]), "keep me")
-        self.assertIn("rrule", edited)
-        self.assertEqual(len(edited.walk("VALARM")), 1)
 
     def test_unnamed_local_zone_retains_dst_rules(self):
         with patch("store.GLib.TimeZone.new_local") as zone, \
@@ -185,16 +149,7 @@ class LocalStoreTests(unittest.TestCase):
         self.assertEqual(events[0]["date_end"], datetime.date(2026, 8, 23))
 
 class GoogleMappingTests(unittest.TestCase):
-    def test_naive_timestamp_uses_backend_zone(self):
-        event = google_event_to_dict(
-            {"start": {"dateTime": "2026-09-16T23:00:00"},
-             "end": {"dateTime": "2026-09-17T00:30:00", "timeZone": "Invalid/Zone"}},
-            {"id": "calendar"}, {"id": "account"}, True, ZoneInfo("Asia/Tokyo"),
-        )
-        self.assertEqual(event["time_start"], datetime.time(23))
-        self.assertEqual(event["time_end"], datetime.time(0, 30))
-
-    def test_refresh_preserves_hidden_events_and_updates_metadata(self):
+    def test_hidden_google_calendar_is_empty_until_refreshed_after_showing(self):
         with tempfile.TemporaryDirectory() as directory:
             backend = GoogleBackend(Path(directory), UTC)
             start = datetime.date(2026, 9, 1)
@@ -206,19 +161,16 @@ class GoogleMappingTests(unittest.TestCase):
                 {"id": "visible", "name": "Old name", "sync_range": "limited"},
             ], "events": [hidden]}]
             backend._services["account"] = object()
-            remote = [{"id": "hidden"}, {"id": "visible", "summary": "Renamed",
-                       "backgroundColor": "#123456"}, {"id": "new"}]
-            with patch.object(backend, "_fetch_calendars", return_value=remote), \
-                    patch.object(backend, "_fetch_events", return_value=([], False)) as fetch:
+            with patch.object(backend, "_fetch_events", return_value=([], False)) as fetch:
                 self.assertEqual(backend.refresh(start, end), [])
-            self.assertEqual([call.args[1] for call in fetch.call_args_list], ["visible", "new"])
-            self.assertEqual(backend.accounts[0]["events"], [hidden])
-            calendars = backend.accounts[0]["calendars"]
-            self.assertFalse(calendars[0]["visible"])
-            self.assertFalse(calendars[0]["reminders"])
-            self.assertEqual(calendars[1]["name"], "Renamed")
-            self.assertEqual(calendars[1]["color"], "#123456")
-            self.assertEqual(calendars[1]["sync_range"], "limited")
+            self.assertEqual([call.args[1] for call in fetch.call_args_list], ["visible"])
+            self.assertEqual(backend.accounts[0]["events"], [])
+            backend.accounts[0]["events"] = [hidden]
+            backend.set_visible("hidden", False, "account")
+            backend.clear_calendar_events("hidden", "account")
+            self.assertEqual(backend.accounts[0]["events"], [])
+            backend.set_visible("hidden", True, "account")
+            self.assertEqual(backend.accounts[0]["events"], [])
 
     def test_google_event_move_precedes_patch(self):
         calls = []

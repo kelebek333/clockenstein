@@ -123,6 +123,12 @@ class CalDAVBackend:
                     self._save()
                     return
 
+    def clear_calendar_events(self, calendar_id, account_id):
+        account = next(account for account in self.accounts if account["id"] == account_id)
+        account["events"] = [event for event in account.get("events", [])
+                             if event.get("calendar_id") != calendar_id]
+        self._save()
+
     def set_reminders(self, calendar_id, enabled, account_id=None):
         for account in self.accounts:
             if account_id and account["id"] != account_id:
@@ -179,8 +185,6 @@ class CalDAVBackend:
                 self._clients[account_id] = client
                 self._calendars[account_id] = {str(c.url): c for c in remote}
                 account["calendars"] = self._merge_calendars(account.get("calendars", []), remote)
-                retained = [e for e in account.get("events", [])
-                            if not _overlaps(e, start, end, self.timezone)]
                 fetched = []
                 for info in account["calendars"]:
                     if target_calendar_id and info["id"] != target_calendar_id:
@@ -206,10 +210,9 @@ class CalDAVBackend:
                                         "ical": _without_alarms(payload)})
                     info["last_sync"] = int(datetime.datetime.now().timestamp())
                     info["sync_error"] = ""
-                if target_calendar_id:
-                    retained = [event for event in account.get("events", [])
-                                if event.get("calendar_id") != target_calendar_id
-                                or not _overlaps(event, start, end, self.timezone)]
+                retained = [event for event in account.get("events", [])
+                            if (target_calendar_id and event.get("calendar_id") != target_calendar_id)
+                            or not _overlaps(event, start, end, self.timezone)]
                 account["events"] = retained + fetched
                 self._errors.pop(account_id, None)
             except Exception as exc:

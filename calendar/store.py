@@ -276,6 +276,9 @@ class CalendarManager:
     def set_visible(self, provider, calendar_id, visible, account_id=None):
         self._backend(provider).set_visible(calendar_id, visible, account_id)
 
+    def clear_calendar_events(self, provider, calendar_id, account_id):
+        self._backend(provider).clear_calendar_events(calendar_id, account_id)
+
     def set_reminders(self, provider, calendar_id, enabled, account_id=None):
         self._backend(provider).set_reminders(calendar_id, enabled, account_id)
 

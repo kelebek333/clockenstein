@@ -194,6 +194,12 @@ class GoogleBackend:
                     self._save()
                     return
 
+    def clear_calendar_events(self, calendar_id, account_id):
+        account = next(account for account in self.accounts if account["id"] == account_id)
+        account["events"] = [event for event in account.get("events", [])
+                             if event.get("_calendar_id") != calendar_id]
+        self._save()
+
     def set_reminders(self, calendar_id, enabled, account_id=None):
         for account in self.accounts:
             if account_id and account["id"] != account_id:
@@ -265,8 +271,6 @@ class GoogleBackend:
                 errors.append(f"{account_id}: {error}")
                 continue
             try:
-                retained = [e for e in account.get("events", [])
-                            if not _raw_overlaps(e, start, end, self.timezone)]
                 fetched = []
                 for cal in account["calendars"]:
                     if target_calendar_id and cal["id"] != target_calendar_id:
@@ -314,15 +318,14 @@ class GoogleBackend:
                         cal["last_sync"] = int(datetime.datetime.now().timestamp())
                         cal["sync_error"] = ""
                     fetched.extend(events)
+                retained = [event for event in account.get("events", [])
+                            if (target_calendar_id and event.get("_calendar_id") != target_calendar_id)
+                            or not _raw_overlaps(event, start, end, self.timezone)]
                 too_big_ids = {cal["id"] for cal in account["calendars"]
                                if cal.get("sync_range") == "too-big"}
                 if too_big_ids:
                     retained = [event for event in retained
                                 if event.get("_calendar_id") not in too_big_ids]
-                if target_calendar_id:
-                    retained = [event for event in account.get("events", [])
-                                if event.get("_calendar_id") != target_calendar_id
-                                or not _raw_overlaps(event, start, end, self.timezone)]
                 account["events"] = retained + fetched
                 creds = self._credentials.get(account_id)
                 if creds is not None and account.get("token"):

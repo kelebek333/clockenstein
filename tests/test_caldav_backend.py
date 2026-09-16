@@ -24,7 +24,7 @@ class FakeCalendar:
 
 
 class CalDAVBackendTests(unittest.TestCase):
-    def test_refresh_keeps_hidden_calendar_events(self):
+    def test_hidden_calendar_is_empty_until_refreshed_after_showing(self):
         with tempfile.TemporaryDirectory() as directory:
             backend = CalDAVBackend(Path(directory), UTC)
             start, end = datetime.date(2026, 9, 1), datetime.date(2026, 9, 30)
@@ -37,9 +37,15 @@ class CalDAVBackendTests(unittest.TestCase):
             with patch.object(backend, "_lookup_password", return_value="password"), \
                     patch.object(backend, "_open", return_value=(object(), [FakeCalendar("hidden", "Hidden")])):
                 self.assertEqual(backend.refresh(start, end), [])
-            self.assertEqual(backend.accounts[0]["events"], [raw])
+            self.assertEqual(backend.accounts[0]["events"], [])
+            # Hiding clears cached events immediately, without waiting for a sync.
+            backend.accounts[0]["events"] = [raw]
+            backend.set_visible("hidden", False, "account")
+            backend.clear_calendar_events("hidden", "account")
+            self.assertEqual(backend.accounts[0]["events"], [])
             backend.set_visible("hidden", True, "account")
-            self.assertEqual(len(backend.get_events()), 1)
+            self.assertEqual(backend.accounts[0]["events"], [])
+            self.assertEqual(backend.get_events(), [])
 
     def test_timed_events_are_displayed_in_the_computer_timezone(self):
         event = Event()

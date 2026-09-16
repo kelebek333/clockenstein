@@ -805,7 +805,15 @@ class MainWindow(Gtk.Window):
         self.status_label.set_visible(bool(message))
 
     def _calendar_switch_toggled(self, switch, _property, cal):
-        self.store.set_visible(cal["provider"], cal["id"], switch.get_active(), cal.get("account_id"))
+        visible = switch.get_active()
+        self.store.set_visible(cal["provider"], cal["id"], visible, cal.get("account_id"))
+        if cal["provider"] != "local":
+            # Remote calendars: Empty cache when hidden, refresh when shown
+            if visible:
+                self._set_status(_("Refresh requested for %s…") % cal["name"])
+                self._refresh_calendar_worker(cal)
+            else:
+                self.store.clear_calendar_events(cal["provider"], cal["id"], cal["account_id"])
         self._update_views()
         notify_changed()
 
@@ -841,7 +849,7 @@ class MainWindow(Gtk.Window):
         self._refresh_calendar_worker(cal, button)
 
     @run_async
-    def _refresh_calendar_worker(self, cal, button):
+    def _refresh_calendar_worker(self, cal, button=None):
         try:
             connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
             connection.call_sync(
@@ -856,7 +864,7 @@ class MainWindow(Gtk.Window):
 
     @run_idle
     def _refresh_request_failed(self, error, button):
-        if button.get_parent() is not None:
+        if button is not None and button.get_parent() is not None:
             button.set_sensitive(True)
             button.set_tooltip_text(_("Refresh this calendar"))
         self._set_status(_("Could not request refresh: %s") % error)
