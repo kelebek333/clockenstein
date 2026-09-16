@@ -301,7 +301,7 @@ class _SpanPill(Gtk.EventBox):
             apply_tinted_event_color(self, event, show_accent)
         if _event_has_ended(event):
             self.set_opacity(0.5)
-        self.connect("button-press-event", lambda _widget, _click: on_event(event))
+        self.connect("button-press-event", _activate_event, on_event, event)
         self.set_tooltip_markup(_event_tooltip(event, time_format))
 
         content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
@@ -338,6 +338,14 @@ def _event_tooltip(event, time_format="locale"):
         return f"<b>{title}</b>"
     details = GLib.markup_escape_text("\n".join(properties))
     return f"<b>{title}</b>\n{details}"
+
+
+def _activate_event(_widget, click, on_event, event):
+    if click.button != 1:
+        return False
+    if click.type == Gdk.EventType.BUTTON_PRESS:
+        on_event(event)
+    return True
 
 
 def _event_has_ended(event):

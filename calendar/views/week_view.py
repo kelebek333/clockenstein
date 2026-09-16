@@ -10,7 +10,7 @@ _ = l10n("clockenstein")
 
 from clockenstein.formatting import WEEKDAY_NAMES, format_time, start_of_week
 from views.colors import apply_tinted_event_color
-from views.month_view import _event_has_ended, _event_tooltip
+from views.month_view import _activate_event, _event_has_ended, _event_tooltip
 from views.day_view import (ALL_DAY_EVENT_MARGIN, ALL_DAY_HEIGHT, HOUR_HEIGHT,
                             DAY_END_MINUTE, DAY_START_MINUTE,
                             _assign_event_columns, _draw_day_grid, _draw_now_line,
@@ -321,8 +321,7 @@ class _DayColumn(Gtk.Overlay):
             apply_tinted_event_color(btn, ev)
             if _event_has_ended(ev):
                 btn.set_opacity(0.5)
-            btn.connect("button-press-event",
-                        lambda _widget, _click, e=ev: self.on_event(e))
+            btn.connect("button-press-event", _activate_event, self.on_event, ev)
             tooltip_markup = _event_tooltip(ev)
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             content.set_valign(Gtk.Align.CENTER if full_day else Gtk.Align.START)
