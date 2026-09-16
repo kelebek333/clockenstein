@@ -517,7 +517,7 @@ class GoogleBackend:
         items, token = [], None
         while True:
             response = service.events().list(calendarId=calendar_id, timeMin=time_min, timeMax=time_max,
-                                             singleEvents=True, showDeleted=True,
+                                             singleEvents=True, showDeleted=False,
                                              timeZone=getattr(local_tz, "key", None),
                                              orderBy="startTime",
                                              maxResults=EVENTS_PAGE_SIZE,

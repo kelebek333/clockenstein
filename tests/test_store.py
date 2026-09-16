@@ -214,6 +214,8 @@ class GoogleMappingTests(unittest.TestCase):
         self.assertEqual([call["maxResults"] for call in calls],
                          [EVENTS_PAGE_SIZE, EVENTS_PAGE_SIZE])
         self.assertEqual([call["pageToken"] for call in calls], [None, "next"])
+        self.assertTrue(all(call["singleEvents"] and not call["showDeleted"]
+                            for call in calls))
         self.assertEqual(stats, {"event_list_requests": 2, "events": 2})
 
     def test_paginated_normal_range_switches_calendar_to_limited_range(self):
