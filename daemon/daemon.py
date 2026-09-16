@@ -322,25 +322,24 @@ class ClockensteinDaemon:
     @run_async
     def _refresh_remote(self, refresh_google=False, refresh_caldav=True,
                         target=None, date_range=None):
-        store = CalendarManager(self.timezone)
-        if not store.has_remote_accounts:
-            self.logger.log("No remote accounts to refresh")
-            self._refresh_finished()
-            return
-        today = datetime.date.today()
-        start = (date_range[0] if date_range else
-                 today - datetime.timedelta(days=NORMAL_RANGE[0]))
-        end = (date_range[1] if date_range else
-               today + datetime.timedelta(days=NORMAL_RANGE[1]))
-        limited_start = today - datetime.timedelta(days=LIMITED_RANGE[0])
-        limited_end = today + datetime.timedelta(days=LIMITED_RANGE[1])
-        restricted_start = today - datetime.timedelta(days=RESTRICTED_RANGE[0])
-        restricted_end = today + datetime.timedelta(days=RESTRICTED_RANGE[1])
-        providers = (target[0] if target else
-                     "Google and CalDAV" if refresh_google and refresh_caldav
-                     else "Google" if refresh_google else "CalDAV")
-        self.logger.log(f"Refreshing {providers} calendars from {start} through {end}")
         try:
+            store = CalendarManager(self.timezone)
+            if not store.has_remote_accounts:
+                self.logger.log("No remote accounts to refresh")
+                return
+            today = datetime.date.today()
+            start = (date_range[0] if date_range else
+                     today - datetime.timedelta(days=NORMAL_RANGE[0]))
+            end = (date_range[1] if date_range else
+                   today + datetime.timedelta(days=NORMAL_RANGE[1]))
+            limited_start = today - datetime.timedelta(days=LIMITED_RANGE[0])
+            limited_end = today + datetime.timedelta(days=LIMITED_RANGE[1])
+            restricted_start = today - datetime.timedelta(days=RESTRICTED_RANGE[0])
+            restricted_end = today + datetime.timedelta(days=RESTRICTED_RANGE[1])
+            providers = (target[0] if target else
+                         "Google and CalDAV" if refresh_google and refresh_caldav
+                         else "Google" if refresh_google else "CalDAV")
+            self.logger.log(f"Refreshing {providers} calendars from {start} through {end}")
             errors = []
             if refresh_google:
                 errors.extend(store.google.refresh(
@@ -373,6 +372,8 @@ class ClockensteinDaemon:
                 self.logger.warning("Refresh completed with errors: " + "; ".join(errors))
             else:
                 self.logger.log("Refresh completed")
+        except Exception as exc:
+            self.logger.error(f"Could not refresh calendars: {exc}")
         finally:
             self._refresh_finished()
 
