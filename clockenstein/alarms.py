@@ -124,7 +124,7 @@ def due_alarms(alarms, since, until, timezone):
                 day += datetime.timedelta(days=1)
         else:
             dates = [since.date(), until.date()]
-        for date in set(dates):
+        for date in sorted(set(dates)):
             trigger = datetime.datetime.combine(date, time, timezone)
             if since < trigger <= until:
                 due.append((alarm, trigger))
