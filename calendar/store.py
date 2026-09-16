@@ -5,6 +5,7 @@ import re
 import uuid
 from pathlib import Path
 from typing import Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from gi.repository import Gio, GLib
 from icalendar import Calendar, Event
@@ -17,6 +18,15 @@ _ = l10n("clockenstein")
 def _data_dir() -> Path:
     override = os.environ.get("CLOCKENSTEIN_DATA_DIR")
     return Path(override) if override else Path.home() / ".local" / "share" / "clockenstein"
+
+
+def local_timezone():
+    identifier = GLib.TimeZone.new_local().get_identifier()
+    try:
+        return ZoneInfo(identifier)
+    except (ZoneInfoNotFoundError, ValueError):
+        with open("/etc/localtime", "rb") as zone_file:
+            return ZoneInfo.from_file(zone_file)
 
 
 def watch_timezone_changes(callback):

@@ -3,7 +3,6 @@ import datetime
 import os
 import signal
 import sys
-from zoneinfo import ZoneInfo
 
 import gi
 from setproctitle import setproctitle
@@ -21,7 +20,7 @@ from clockenstein import BUS_INTERFACE, BUS_NAME, BUS_PATH, DEFAULT_COLOR, SETTI
 from clockenstein.alarms import AlarmStore, due_alarms
 from clockenstein.logging import Logger
 from backends.google import LIMITED_RANGE, NORMAL_RANGE, RESTRICTED_RANGE
-from store import CalendarManager, watch_timezone_changes
+from store import CalendarManager, local_timezone, watch_timezone_changes
 
 CALDAV_REFRESH_INTERVAL_SECONDS = 15 * 60
 GOOGLE_REFRESH_INTERVAL_SECONDS = 2 * 60 * 60
@@ -105,7 +104,7 @@ class ClockensteinDaemon:
         self._emit_changed()
 
     def refresh_timezone(self):
-        self.timezone = ZoneInfo(GLib.TimeZone.new_local().get_identifier())
+        self.timezone = local_timezone()
 
     def run(self):
         print(f"clockenstein-daemon: Starting version {VERSION}", flush=True)

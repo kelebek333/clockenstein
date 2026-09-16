@@ -1,6 +1,5 @@
 import calendar
 import datetime
-from zoneinfo import ZoneInfo
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -19,7 +18,7 @@ from clockenstein.drawing import draw_centered_circle
 from clockenstein.formatting import (capitalize_first, format_time, resolve_first_weekday,
                         start_of_week)
 from dbus import notify_changed
-from store import CalendarManager, watch_timezone_changes
+from store import CalendarManager, local_timezone, watch_timezone_changes
 from views.colors import apply_tinted_event_color
 from views.month_view import MonthView
 from views.week_view import WeekView
@@ -148,7 +147,7 @@ class MainWindow(Gtk.Window):
         self._refresh(refresh_remote=False)
 
     def refresh_timezone(self):
-        self.timezone = ZoneInfo(GLib.TimeZone.new_local().get_identifier())
+        self.timezone = local_timezone()
 
     def _build_ui(self):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
