@@ -196,7 +196,13 @@ class MiniCalendar(Gtk.Box):
             row.get_style_context().add_class("mini-calendar-week")
             if week_start == selected_week:
                 row.get_style_context().add_class("selected")
-            week_number = Gtk.Label(label=str(week_start.isocalendar()[1]))
+            # week_start is the date of our first day in the row, it could be Monday or Sunday
+            # Find the date for Tuesday in this row to determine its ISO week number.
+            # Python's weekday() always starts with Monday (on any locale), so Tuesday is always +1
+            date = week_start
+            while date.weekday() != 1:
+                date += datetime.timedelta(days=1)
+            week_number = Gtk.Label(label=str(date.isocalendar()[1]))
             week_number.set_size_request(22, -1)
             week_number.get_style_context().add_class("mini-calendar-week-number")
             row.pack_start(week_number, False, False, 0)
