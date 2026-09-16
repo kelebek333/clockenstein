@@ -1,4 +1,5 @@
 import datetime
+from copy import deepcopy
 from typing import Callable
 
 import gi
@@ -87,6 +88,7 @@ class MonthView(Gtk.Box):
         self.grid.set_vexpand(True)
         content.pack_start(self.grid, True, True, 0)
         self.event_widgets = []
+        self._event_render_state = None
 
         self.cells: list[_DayCell] = []
         for row in range(6):
@@ -130,6 +132,11 @@ class MonthView(Gtk.Box):
             self.update(*self._last_update)
 
     def _render_events(self, grid_start, events):
+        render_state = (grid_start, self.max_lanes, self.event_height,
+                        self.time_format, events,
+                        [_event_has_ended(event) for event in events])
+        if render_state == self._event_render_state:
+            return
         for widget in self.event_widgets:
             self.grid.remove(widget)
         self.event_widgets = []
@@ -176,6 +183,7 @@ class MonthView(Gtk.Box):
                 index = row * 7 + col
                 day = grid_start + datetime.timedelta(days=index)
                 self.cells[index].set_event_space(reserved, hidden_by_date.get(day, []))
+        self._event_render_state = deepcopy(render_state)
 
     def _on_size_allocate(self, _widget, _allocation):
         if self._lane_reflow_source is None:

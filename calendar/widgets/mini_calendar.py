@@ -99,7 +99,15 @@ class MiniCalendar(Gtk.Box):
 
     def set_events(self, events):
         self.events = events
-        self._render()
+        if self._rendered_today != datetime.date.today():
+            self._render()
+            return
+        colors = self._event_colors()
+        for date, dots in self._day_dots.items():
+            day_colors = colors.get(date, ())
+            if dots.colors != day_colors:
+                dots.colors = day_colors
+                dots.queue_draw()
 
     def _show_months(self, _button):
         values = [(month, capitalize_first(datetime.date(2024, month, 1).strftime("%B")))
@@ -172,10 +180,12 @@ class MiniCalendar(Gtk.Box):
         self.on_date_selected(date)
 
     def _render(self):
+        self._rendered_today = datetime.date.today()
         self.month_label.set_text(capitalize_first(self.date.strftime("%B")))
         self.year_label.set_text(str(self.date.year))
         for child in self.weeks_box.get_children():
             self.weeks_box.remove(child)
+        self._day_dots = {}
         first = datetime.date(self.date.year, self.date.month, 1)
         grid_start = start_of_week(first, self.first_weekday)
         colors = self._event_colors()
@@ -200,11 +210,13 @@ class MiniCalendar(Gtk.Box):
                     button.get_style_context().add_class("other-month")
                 if date == self.date:
                     button.get_style_context().add_class("selected")
-                if date == datetime.date.today():
+                if date == self._rendered_today:
                     button.get_style_context().add_class("today")
                 content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
                 content.pack_start(Gtk.Label(label=str(date.day)), False, False, 0)
-                content.pack_start(_EventDots(colors.get(date, ())), False, False, 0)
+                dots = _EventDots(colors.get(date, ()))
+                self._day_dots[date] = dots
+                content.pack_start(dots, False, False, 0)
                 button.add(content)
                 button.connect("clicked", lambda _button, value=date: self._select_date(value))
                 row.pack_start(button, True, True, 0)
