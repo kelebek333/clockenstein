@@ -24,6 +24,23 @@ class FakeCalendar:
 
 
 class CalDAVBackendTests(unittest.TestCase):
+    def test_refresh_keeps_hidden_calendar_events(self):
+        with tempfile.TemporaryDirectory() as directory:
+            backend = CalDAVBackend(Path(directory), UTC)
+            start, end = datetime.date(2026, 9, 1), datetime.date(2026, 9, 30)
+            raw = {"calendar_id": "hidden", "url": "https://example.test/event.ics",
+                   "ical": _event_ical({"date_start": start, "date_end": start,
+                                        "all_day": True}, UTC, "event")}
+            backend.accounts = [{"id": "account", "username": "me",
+                                 "url": "https://example.test/", "calendars": [
+                                     {"id": "hidden", "visible": False}], "events": [raw]}]
+            with patch.object(backend, "_lookup_password", return_value="password"), \
+                    patch.object(backend, "_open", return_value=(object(), [FakeCalendar("hidden", "Hidden")])):
+                self.assertEqual(backend.refresh(start, end), [])
+            self.assertEqual(backend.accounts[0]["events"], [raw])
+            backend.set_visible("hidden", True, "account")
+            self.assertEqual(len(backend.get_events()), 1)
+
     def test_timed_events_are_displayed_in_the_computer_timezone(self):
         event = Event()
         event.add("dtstart", datetime.datetime(2026, 9, 9, 16, 45,

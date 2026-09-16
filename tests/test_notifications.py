@@ -3,6 +3,8 @@ import importlib.util
 import unittest
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +19,39 @@ AGENT_SPEC.loader.exec_module(AGENT)
 
 
 class NotificationSchedulerTests(unittest.TestCase):
+    def test_refresh_setup_failure_releases_refresh_state(self):
+        daemon = object.__new__(DAEMON.ClockensteinDaemon)
+        daemon.timezone = ZoneInfo("UTC")
+        daemon.logger = Mock()
+        daemon.refreshing = True
+        daemon.refresh_queue = []
+        daemon._reload_reminder_events = Mock()
+        daemon._emit_changed = Mock()
+        with patch.object(DAEMON, "CalendarManager", side_effect=OSError("unreadable store")):
+            worker = daemon._refresh_remote()
+            worker.join(timeout=5)
+            self.assertFalse(worker.is_alive())
+            context = DAEMON.GLib.MainContext.default()
+            while context.pending():
+                context.iteration(False)
+        self.assertFalse(daemon.refreshing)
+        daemon.logger.error.assert_called_once()
+
+    def test_only_primary_event_presses_activate_and_are_consumed(self):
+        from gi.repository import Gdk
+        from views.month_view import _activate_event
+        callback = Mock()
+        event = {"uid": "event"}
+        for button in (2, 3):
+            self.assertFalse(_activate_event(None, SimpleNamespace(
+                button=button, type=Gdk.EventType.BUTTON_PRESS), callback, event))
+        callback.assert_not_called()
+        self.assertTrue(_activate_event(None, SimpleNamespace(
+            button=1, type=Gdk.EventType.BUTTON_PRESS), callback, event))
+        self.assertTrue(_activate_event(None, SimpleNamespace(
+            button=1, type=Gdk.EventType.DOUBLE_BUTTON_PRESS), callback, event))
+        callback.assert_called_once_with(event)
+
     def test_reminder_uses_the_named_system_timezone(self):
         event = {"uid": "one", "date_start": datetime.date(2026, 9, 9),
                  "time_start": datetime.time(17, 45)}
