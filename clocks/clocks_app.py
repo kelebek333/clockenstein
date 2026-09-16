@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import datetime
 import gettext
+import locale
 import os
 import sys
 
@@ -367,13 +368,25 @@ class ClocksWindow(Gtk.ApplicationWindow):
         name_row.pack_start(name_label, False, False, 0)
         name_row.pack_end(entry, True, True, 0)
         editor.pack_start(name_row, False, False, 0)
-        hour = Gtk.SpinButton.new_with_range(0, 23, 1)
+        time_format = self.settings.get_string("time-format")
+        if time_format == "12-hour":
+            use_12_hour = True
+        elif time_format == "24-hour":
+            use_12_hour = False
+        else:
+            locale_format = locale.nl_langinfo(locale.T_FMT)
+            use_12_hour = "%I" in locale_format or "%r" in locale_format
+        hour = Gtk.SpinButton.new_with_range(1 if use_12_hour else 0,
+                                             12 if use_12_hour else 23, 1)
         minute = Gtk.SpinButton.new_with_range(0, 59, 1)
         hour.set_numeric(True)
         minute.set_numeric(True)
         current_time = (datetime.time.fromisoformat(alarm["time"])
                         if alarm else datetime.datetime.now().time())
-        hour.set_value(current_time.hour)
+        if use_12_hour:
+            hour.set_value(current_time.hour % 12 or 12)
+        else:
+            hour.set_value(current_time.hour)
         minute.set_value(current_time.minute)
         time_row = Xs.SettingsWidget()
         time_label = Gtk.Label(label=_("Time"), xalign=0)
@@ -383,6 +396,22 @@ class ClocksWindow(Gtk.ApplicationWindow):
         time_box.pack_start(hour, True, True, 0)
         time_box.pack_start(Gtk.Label(label=":"), False, False, 0)
         time_box.pack_start(minute, True, True, 0)
+        period = None
+        if use_12_hour:
+            period = Gtk.ComboBoxText()
+            period.append("am", _("AM"))
+            period.append("pm", _("PM"))
+            period.set_active_id("am" if current_time.hour < 12 else "pm")
+            time_box.pack_start(period, False, False, 0)
+
+        def get_time():
+            selected_hour = hour.get_value_as_int()
+            if period is not None:
+                selected_hour %= 12
+                if period.get_active_id() == "pm":
+                    selected_hour += 12
+            return datetime.time(selected_hour, minute.get_value_as_int())
+
         time_controls = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         time_info = Gtk.Label(xalign=0)
         time_info.get_style_context().add_class("clockenstein-editor-time-info")
@@ -517,7 +546,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
                 date = selected_date
                 if date is None:
                     now = datetime.datetime.now()
-                    time = datetime.time(hour.get_value_as_int(), minute.get_value_as_int())
+                    time = get_time()
                     date = now.date() + datetime.timedelta(
                         days=int(datetime.datetime.combine(now.date(), time) <= now)
                     )
@@ -555,6 +584,8 @@ class ClocksWindow(Gtk.ApplicationWindow):
         clear_date.connect("clicked", date_cleared)
         hour.connect("value-changed", update_time_info)
         minute.connect("value-changed", update_time_info)
+        if period is not None:
+            period.connect("changed", update_time_info)
         update_time_info()
         dialog.show_all()
         response = dialog.run()
@@ -568,14 +599,14 @@ class ClocksWindow(Gtk.ApplicationWindow):
             selected_days = [index for index, button in enumerate(buttons)
                              if button.get_active()]
             date = selected_date
+            time = get_time()
             if not selected_days and date is None:
                 now = datetime.datetime.now()
-                time = datetime.time(hour.get_value_as_int(), minute.get_value_as_int())
                 date = now.date() + datetime.timedelta(
                     days=int(datetime.datetime.combine(now.date(), time) <= now)
                 )
             values = {
-                "time": f"{hour.get_value_as_int():02d}:{minute.get_value_as_int():02d}",
+                "time": time.strftime("%H:%M"),
                 "label": entry.get_text(),
                 "date": date.isoformat() if date else None,
                 "repeat": selected_days,
