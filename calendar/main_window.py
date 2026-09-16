@@ -1140,10 +1140,20 @@ class MainWindow(Gtk.Window):
         dialog.destroy()
 
     def _on_key(self, _widget, event):
-        if event.keyval == Gdk.KEY_n and event.state & Gdk.ModifierType.CONTROL_MASK: self._new_event()
-        elif event.keyval == Gdk.KEY_t: self._go_today()
-        elif event.keyval == Gdk.KEY_Left: self._navigate(-1)
-        elif event.keyval == Gdk.KEY_Right: self._navigate(1)
+        modifiers = event.state & Gtk.accelerator_get_default_mod_mask()
+        if event.keyval == Gdk.KEY_n and modifiers == Gdk.ModifierType.CONTROL_MASK:
+            self._new_event()
+        elif modifiers:
+            return False
+        elif event.keyval == Gdk.KEY_t:
+            self._go_today()
+        elif event.keyval == Gdk.KEY_Left:
+            self._navigate(-1)
+        elif event.keyval == Gdk.KEY_Right:
+            self._navigate(1)
+        else:
+            return False
+        return True
 
     def _date_range(self):
         d = self.current_date
