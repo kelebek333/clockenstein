@@ -181,7 +181,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
 
     def _update_service_warning(self):
         if not self._service_running[BUS_NAME]:
-            message = _("The Clockenstein daemon is not running.")
+            message = _("The daemon is not running.")
         elif not self._service_running[AGENT_BUS_NAME]:
             message = _("The notification agent is not running.")
         else:

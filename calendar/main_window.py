@@ -116,9 +116,13 @@ class MainWindow(Gtk.Window):
         daemon_running = self._service_running[BUS_NAME]
         agent_running = self._service_running[AGENT_BUS_NAME]
         if not daemon_running:
-            return _("The calendar daemon is not running. Synchronization and reminders may be unavailable.")
+            message = _("The daemon is not running.")
+            message + "\n" + _("Synchronization and reminders may be unavailable.")
+            return message
         if not agent_running:
-            return _("The notification agent is not running. Reminders may be unavailable.")
+            message = _("The notification agent is not running.")
+            message + "\n" + _("Reminders may be unavailable.")
+            return message
         return ""
 
     def _daemon_changed(self, _connection, _sender, _path, _interface,
