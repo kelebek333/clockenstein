@@ -127,7 +127,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
 
         header = Gtk.HeaderBar(title=_("Alarms"), show_close_button=True)
         add = Gtk.Button.new_from_icon_name("xsi-list-add-symbolic", Gtk.IconSize.BUTTON)
-        add.set_tooltip_text(_("Add Alarm"))
+        add.set_tooltip_text(_("Add"))
         add.connect("clicked", self._edit_alarm, None)
         header.pack_end(add)
         self.set_titlebar(header)
@@ -144,7 +144,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         empty.set_border_width(24)
         image = Gtk.Image.new_from_icon_name("xsi-alarm-symbolic", Gtk.IconSize.DIALOG)
         image.get_style_context().add_class("dim-label")
-        label = Gtk.Label(label=_("No alarms"))
+        label = Gtk.Label(label=_("No alarms are set"))
         label.get_style_context().add_class("dim-label")
         label.get_style_context().add_class("clockenstein-empty-label")
         empty.pack_start(image, False, False, 0)
@@ -311,7 +311,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         content.pack_start(details, True, True, 0)
         edit = Gtk.Button.new_from_icon_name("xsi-document-edit-symbolic", Gtk.IconSize.BUTTON)
         edit.set_relief(Gtk.ReliefStyle.NONE)
-        edit.set_tooltip_text(_("Edit Alarm"))
+        edit.set_tooltip_text(_("Edit"))
         edit.connect("clicked", self._edit_alarm, alarm)
         content.pack_start(edit, False, False, 0)
         if not past:
@@ -352,7 +352,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
 
     def _edit_alarm(self, _button, alarm):
         dialog = Gtk.Dialog(
-            title=_("Edit Alarm") if alarm else _("Add Alarm"),
+            title=_("Edit") if alarm else _("New Alarm"),
             transient_for=self, modal=True,
         )
         dialog.add_button(_("Cancel"), Gtk.ResponseType.CANCEL)
@@ -374,7 +374,6 @@ class ClocksWindow(Gtk.ApplicationWindow):
         content.pack_start(editor, True, True, 0)
 
         entry = Gtk.Entry()
-        entry.set_placeholder_text(_("Alarm name"))
         entry.set_text(alarm.get("label", "") if alarm else "")
         name_row = Xs.SettingsWidget()
         name_label = Gtk.Label(label=_("Name"), xalign=0)
@@ -671,8 +670,6 @@ def _alarm_time_info(alarm):
         return days
     if alarm.get("date"):
         date = datetime.date.fromisoformat(alarm["date"])
-        if _is_past_one_off(alarm):
-            return _alarm_info_label(_("Past · %s") % _alarm_date_label(date))
     else:
         now = datetime.datetime.now()
         time = datetime.time.fromisoformat(alarm["time"])

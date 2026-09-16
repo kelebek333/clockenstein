@@ -238,7 +238,7 @@ class LocalStore:
         try:
             return Calendar.from_ical(path.read_bytes())
         except Exception as exc:
-            raise RuntimeError(_("Could not read %s: %s") % (path.name, exc)) from exc
+            raise RuntimeError(_("Could not read %s") % path.name + f": {exc}") from exc
 
     def _save_calendar(self, calendar_id, cal):
         path = self._path(calendar_id)

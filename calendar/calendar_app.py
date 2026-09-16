@@ -46,7 +46,7 @@ def _command_line(application, command_line):
             value = argument.partition("=")[2]
         elif argument == "--date":
             if index + 1 >= len(arguments):
-                command_line.printerr(_("The --date option requires a date.\n"))
+                command_line.printerr("The --date option requires a date.\n")
                 return 2
             index += 1
             value = arguments[index]
@@ -56,7 +56,7 @@ def _command_line(application, command_line):
         try:
             requested_date = datetime.date.fromisoformat(value)
         except ValueError:
-            command_line.printerr(_("Invalid date: %s\n") % value)
+            command_line.printerr(f"Invalid date: {value}\n")
             return 2
         index += 1
 

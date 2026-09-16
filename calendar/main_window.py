@@ -969,7 +969,6 @@ class MainWindow(Gtk.Window):
 
     @run_idle
     def _connection_progress(self, message):
-        print(f"Clockenstein: {message}", flush=True)
         self._set_status(message)
 
     def _connect_caldav(self):

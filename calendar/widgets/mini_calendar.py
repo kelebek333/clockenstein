@@ -112,13 +112,13 @@ class MiniCalendar(Gtk.Box):
     def _show_months(self, _button):
         values = [(month, capitalize_first(datetime.date(2024, month, 1).strftime("%B")))
                   for month in range(1, 13)]
-        self._show_selector(_("Select Month"), "month", values, self.date.month)
+        self._show_selector(_("Month"), "month", values, self.date.month)
 
     def _show_years(self, _button):
         first = max(1, self.date.year - 100)
         last = min(9999, self.date.year + 100)
         values = [(year, str(year)) for year in range(first, last + 1)]
-        self._show_selector(_("Select Year"), "year", values, self.date.year)
+        self._show_selector(_("Year"), "year", values, self.date.year)
 
     def _show_selector(self, title, kind, values, selected):
         self.selector_title.set_text(title)
