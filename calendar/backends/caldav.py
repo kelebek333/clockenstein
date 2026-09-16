@@ -144,7 +144,8 @@ class CalDAVBackend:
                 if not cal:
                     continue
                 try:
-                    component = next(c for c in Calendar.from_ical(raw["ical"]).walk()
+                    calendar = Calendar.from_ical(raw["ical"])
+                    component = next(c for c in calendar.walk()
                                      if c.name == "VEVENT")
                     event = _component_to_dict(component, self.timezone)
                 except Exception:
@@ -156,7 +157,8 @@ class CalDAVBackend:
                              calendar_id=cal["id"], calendar_name=cal.get("name", _("Calendar")),
                              calendar_color=cal.get("color", self._color(cal["id"])),
                              reminders=cal.get("reminders", True),
-                             editable=bool(online and cal.get("writable", True)), cached=not online,
+                             editable=bool(online and cal.get("writable", True)
+                                           and not _is_recurring(calendar)), cached=not online,
                              _caldav_url=raw.get("url"))
                 result.append(event)
         return result
@@ -402,6 +404,11 @@ def _without_alarms(payload):
         return calendar.to_ical().decode("utf-8")
     except Exception:
         return payload
+
+
+def _is_recurring(calendar):
+    return any(any(key in event for key in ("RRULE", "RDATE", "EXDATE", "RECURRENCE-ID"))
+               for event in calendar.walk("VEVENT"))
 
 
 def _cached_uid(raw):

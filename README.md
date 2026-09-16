@@ -12,6 +12,10 @@ Calendar application for Linux desktops.
 
 Remote calendars are read-only when disconnected or offline.
 
+Recurring CalDAV events share the same UID for all their instances. So
+in Clockenstein, these are read-only to prevent CRUD operations from
+affecting all instances at once.
+
 ## Architecture and synchronization
 
 `clockenstein-calendar` is the client application.
