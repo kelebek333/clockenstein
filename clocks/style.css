@@ -1,3 +1,7 @@
+.clockenstein-empty-label {
+    font-size: 1.4em;
+}
+
 .clockenstein-alarm-row {
     border-bottom: 1px solid alpha(@borders, 0.65);
 }

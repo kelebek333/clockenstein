@@ -138,6 +138,20 @@ class ClocksWindow(Gtk.ApplicationWindow):
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.add(self.list_box)
+        empty = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20,
+                        halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        empty.set_border_width(24)
+        image = Gtk.Image.new_from_icon_name("xsi-alarm-symbolic", Gtk.IconSize.DIALOG)
+        image.get_style_context().add_class("dim-label")
+        label = Gtk.Label(label=_("No alarms"))
+        label.get_style_context().add_class("dim-label")
+        label.get_style_context().add_class("clockenstein-empty-label")
+        empty.pack_start(image, False, False, 0)
+        empty.pack_start(label, False, False, 0)
+        self.alarm_stack = Gtk.Stack()
+        self.alarm_stack.add_named(scroll, "alarms")
+        self.alarm_stack.add_named(empty, "empty")
+        self.alarm_stack.show_all()
         layout = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.service_warning = Gtk.InfoBar()
         self.service_warning.set_message_type(Gtk.MessageType.WARNING)
@@ -153,7 +167,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         self.next_alarm_label.set_margin_top(20)
         self.next_alarm_label.set_margin_bottom(12)
         layout.pack_start(self.next_alarm_label, False, False, 0)
-        layout.pack_start(scroll, True, True, 0)
+        layout.pack_start(self.alarm_stack, True, True, 0)
         self.add(layout)
         self.order_refresh_source = 0
         self._service_running = {BUS_NAME: False, AGENT_BUS_NAME: False}
@@ -221,6 +235,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
             pass
 
     def refresh(self):
+        self.alarm_stack.set_visible_child_name("alarms")
         for row in self.list_box.get_children():
             self.list_box.remove(row)
         try:
@@ -251,10 +266,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         for alarm in sorted(alarms, key=next_time_key):
             self.list_box.add(self._alarm_row(alarm))
         if not alarms:
-            empty = Gtk.Label(label=_("No alarms yet"), xalign=0.5)
-            empty.get_style_context().add_class("dim-label")
-            empty.set_margin_top(36)
-            self.list_box.add(empty)
+            self.alarm_stack.set_visible_child_name("empty")
         self.show_all()
 
     def _alarm_row(self, alarm):
