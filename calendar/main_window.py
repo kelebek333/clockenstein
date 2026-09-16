@@ -323,7 +323,7 @@ class MainWindow(Gtk.Window):
         dialog.run()
         dialog.destroy()
 
-    def _populate_calendar_list(self):
+    def _populate_calendar_list(self, events):
         for child in self.visible_calendar_box.get_children():
             self.visible_calendar_box.remove(child)
         for cal in self._sorted_calendars():
@@ -333,7 +333,7 @@ class MainWindow(Gtk.Window):
                     label.set_opacity(0.5)
                 self.visible_calendar_box.pack_start(label, False, False, 0)
         self.visible_calendar_box.show_all()
-        self._populate_upcoming()
+        self._populate_upcoming(events)
 
         states = self.store.google.account_states() + self.store.caldav.account_states()
         offline = [s for s in states if not s.get("online")]
@@ -384,14 +384,14 @@ class MainWindow(Gtk.Window):
         self.range_infobar.get_content_area().show_all()
         self.range_infobar.show()
 
-    def _populate_upcoming(self):
+    def _populate_upcoming(self, events):
         for child in self.upcoming_box.get_children():
             self.upcoming_box.remove(child)
 
         now = datetime.datetime.now()
         today = now.date()
         upcoming = []
-        for event in self._available_events():
+        for event in events:
             start_date = event["date_start"]
             start_time = event.get("time_start")
             if start_date < today:
@@ -774,7 +774,6 @@ class MainWindow(Gtk.Window):
                 cal["id"], name.get_text().strip(), color.get_rgba().to_string()
             )
             self._fill_calendar_box(calendar_box)
-            self._populate_calendar_list()
             self._update_views()
             notify_changed()
         dialog.destroy()
@@ -799,7 +798,6 @@ class MainWindow(Gtk.Window):
         if response == Gtk.ResponseType.OK:
             self.store.delete_local_calendar(cal["id"])
             self._fill_calendar_box(calendar_box)
-            self._populate_calendar_list()
             self._update_views()
             notify_changed()
 
@@ -809,7 +807,6 @@ class MainWindow(Gtk.Window):
 
     def _calendar_switch_toggled(self, switch, _property, cal):
         self.store.set_visible(cal["provider"], cal["id"], switch.get_active(), cal.get("account_id"))
-        self._populate_calendar_list()
         self._update_views()
         notify_changed()
 
@@ -883,7 +880,7 @@ class MainWindow(Gtk.Window):
         box.show_all()
         if dialog.run() == Gtk.ResponseType.OK and name.get_text().strip():
             self.store.create_calendar(name.get_text().strip(), color.get_rgba().to_string())
-            self._populate_calendar_list()
+            self._populate_calendar_list(self._available_events())
             notify_changed()
         dialog.destroy()
 
@@ -1179,7 +1176,6 @@ class MainWindow(Gtk.Window):
 
     def _refresh(self, refresh_remote=False, refresh_caldav=False):
         self._update_views()
-        self._populate_calendar_list()
         if (refresh_remote or refresh_caldav) and not self._refreshing:
             self._set_refreshing(True)
             self._set_status(_("Connecting to online calendars…"))
@@ -1222,13 +1218,11 @@ class MainWindow(Gtk.Window):
         self._set_status(_("Synchronization requested"))
         self.store = CalendarManager(self.timezone)
         self._update_views()
-        self._populate_calendar_list()
 
     @run_idle
     def _remote_done(self, errors):
         self._set_refreshing(False)
         self._update_views()
-        self._populate_calendar_list()
         if self._calendar_dialog_box is not None:
             self._fill_calendar_box(self._calendar_dialog_box)
         notify_changed()
@@ -1251,7 +1245,6 @@ class MainWindow(Gtk.Window):
 
         if active and changed:
             self._update_views()
-            self._populate_calendar_list()
 
     def _calendar_available(self, calendar):
         if calendar.get("provider") == "local":
@@ -1263,8 +1256,8 @@ class MainWindow(Gtk.Window):
                 any(state["id"] == calendar.get("account_id") and state.get("online")
                     for state in states))
 
-    def _available_events(self, start=None, end=None):
-        events = self.store.get_events(start, end)
+    def _available_events(self):
+        events = self.store.get_events()
         if self._refreshing:
             return [event if event.get("provider") == "local" else
                     {**event, "editable": False} for event in events]
@@ -1272,12 +1265,15 @@ class MainWindow(Gtk.Window):
 
     def _update_views(self):
         start, end = self._date_range()
-        events = self._available_events(start, end)
+        all_events = self._available_events()
+        events = [event for event in all_events
+                  if event["date_end"] >= start and event["date_start"] <= end]
         self.month_view.update(self.current_date, events, self._month_week_offset,
                                self._month_selected_date)
         self.week_view.update(self.current_date, events, self._week_selected_date)
         self.day_view.update(self.current_date, events)
-        self.mini_cal.set_events(self._available_events())
+        self.mini_cal.set_events(all_events)
+        self._populate_calendar_list(all_events)
 
 
 def _month_days(year, month):
