@@ -442,8 +442,9 @@ def _show_event_tooltip(_widget, _x, _y, _keyboard_mode, tooltip, markup):
 
 
 def _fit_week_title(widget, title, available_width):
+    layout = widget.create_pango_layout("")
+
     def fits(value):
-        layout = widget.create_pango_layout("")
         layout.set_markup(f"<b>{GLib.markup_escape_text(value)}</b>", -1)
         width, _height = layout.get_pixel_size()
         return width <= available_width
