@@ -1,7 +1,9 @@
 import datetime
 import json
 import os
+import sqlite3
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 DEFAULT_SOUND = os.path.join("@datadir@", "clockenstein", "sounds", "notification.oga")
@@ -12,67 +14,110 @@ def _data_dir():
 
 
 class AlarmStore:
-    """Small, daemon-owned store for alarms rather than calendar events."""
+    """Alarm storage shared by Clocks and the daemon."""
 
     def __init__(self, data_dir=None):
         self.data_dir = Path(data_dir) if data_dir else _data_dir()
-        self.path = self.data_dir / "alarms.json"
+        self.path = self.data_dir / "alarms.db"
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        with self._connection(write=True) as connection:
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS alarms (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    time TEXT NOT NULL,
+                    date TEXT,
+                    repeat_days TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+                    last_fired INTEGER,
+                    sound_enabled INTEGER NOT NULL CHECK (sound_enabled IN (0, 1)),
+                    sound TEXT NOT NULL,
+                    sound_interval INTEGER NOT NULL CHECK (sound_interval >= 1)
+                )
+            """)
+
+    @contextmanager
+    def _connection(self, write=False):
+        connection = sqlite3.connect(self.path)
+        connection.row_factory = sqlite3.Row
+        try:
+            with connection:
+                if write:
+                    # Lock before reading so another writer can't change an alarm
+                    # between our lookup and update. SQLite waits for busy writers.
+                    connection.execute("BEGIN IMMEDIATE")
+                yield connection
+        finally:
+            connection.close()
 
     def list(self):
-        try:
-            alarms = json.loads(self.path.read_text(encoding="utf-8"))
-            return alarms if isinstance(alarms, list) else []
-        except (OSError, ValueError):
-            return []
+        with self._connection() as connection:
+            return [self._from_row(row) for row in connection.execute(
+                "SELECT * FROM alarms ORDER BY rowid"
+            )]
 
     def create(self, values):
         alarm = self._normalise(values)
         alarm["id"] = str(uuid.uuid4())
-        self._replace(alarm)
+        with self._connection(write=True) as connection:
+            connection.execute("""
+                INSERT INTO alarms (id, time, date, repeat_days, label, enabled,
+                                    last_fired, sound_enabled, sound, sound_interval)
+                VALUES (:id, :time, :date, :repeat_days, :label, :enabled,
+                        :last_fired, :sound_enabled, :sound, :sound_interval)
+            """, self._to_row(alarm))
         return alarm
 
     def update(self, alarm_id, values):
-        existing = self.get(alarm_id)
-        if existing is None:
-            raise KeyError(alarm_id)
-        alarm = self._normalise({**existing, **values})
-        alarm["id"] = alarm_id
-        self._replace(alarm)
+        with self._connection(write=True) as connection:
+            row = connection.execute("SELECT * FROM alarms WHERE id = ?", (alarm_id,)).fetchone()
+            if row is None:
+                raise KeyError(alarm_id)
+            alarm = self._normalise({**self._from_row(row), **values})
+            alarm["id"] = alarm_id
+            connection.execute("""
+                UPDATE alarms SET time = :time, date = :date, repeat_days = :repeat_days,
+                    label = :label, enabled = :enabled, last_fired = :last_fired,
+                    sound_enabled = :sound_enabled, sound = :sound,
+                    sound_interval = :sound_interval
+                WHERE id = :id
+            """, self._to_row(alarm))
         return alarm
 
     def get(self, alarm_id):
-        return next((alarm for alarm in self.list() if alarm.get("id") == alarm_id), None)
+        with self._connection() as connection:
+            row = connection.execute("SELECT * FROM alarms WHERE id = ?", (alarm_id,)).fetchone()
+            return self._from_row(row) if row is not None else None
 
     def delete(self, alarm_id):
-        alarms = self.list()
-        updated = [alarm for alarm in alarms if alarm.get("id") != alarm_id]
-        if len(updated) == len(alarms):
-            raise KeyError(alarm_id)
-        self._save(updated)
+        with self._connection(write=True) as connection:
+            result = connection.execute("DELETE FROM alarms WHERE id = ?", (alarm_id,))
+            if result.rowcount == 0:
+                raise KeyError(alarm_id)
 
     def set_enabled(self, alarm_id, enabled):
         return self.update(alarm_id, {"enabled": bool(enabled)})
 
     def mark_fired(self, alarm):
-        return self.update(alarm["id"], {
-            "last_fired": int(datetime.datetime.now().timestamp()),
-        })
+        with self._connection(write=True) as connection:
+            # Only update firing history, never write the daemon's old alarm copy
+            # over a user's edits or recreate an alarm they have deleted.
+            connection.execute("UPDATE alarms SET last_fired = ? WHERE id = ?",
+                               (int(datetime.datetime.now().timestamp()), alarm["id"]))
+            row = connection.execute("SELECT * FROM alarms WHERE id = ?", (alarm["id"],)).fetchone()
+            return self._from_row(row) if row is not None else None
 
-    def _replace(self, replacement):
-        alarms = self.list()
-        for index, alarm in enumerate(alarms):
-            if alarm.get("id") == replacement["id"]:
-                alarms[index] = replacement
-                break
-        else:
-            alarms.append(replacement)
-        self._save(alarms)
+    @staticmethod
+    def _to_row(alarm):
+        return {**alarm, "repeat_days": json.dumps(alarm["repeat"])}
 
-    def _save(self, alarms):
-        temporary = self.path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(alarms, indent=2), encoding="utf-8")
-        temporary.replace(self.path)
+    @staticmethod
+    def _from_row(row):
+        alarm = dict(row)
+        alarm["repeat"] = json.loads(alarm.pop("repeat_days"))
+        alarm["enabled"] = bool(alarm["enabled"])
+        alarm["sound_enabled"] = bool(alarm["sound_enabled"])
+        return alarm
 
     @staticmethod
     def _normalise(values):

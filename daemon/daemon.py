@@ -257,7 +257,8 @@ class ClockensteinDaemon:
             for event in _due_notifications(events, since, now, minutes, self.timezone):
                 self._emit_reminder(event)
             for alarm, trigger in due_alarms(self.alarm_records, since, now, self.timezone):
-                self.alarms.mark_fired(alarm)
+                if self.alarms.mark_fired(alarm) is None:
+                    continue  # The alarm was deleted since the last reload.
                 self._reload_alarms()
                 self._emit_alarm(alarm, trigger)
                 self._emit_alarms_changed()

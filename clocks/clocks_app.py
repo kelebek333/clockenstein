@@ -3,6 +3,7 @@ import datetime
 import gettext
 import locale
 import os
+import sqlite3
 import sys
 
 import gi
@@ -108,13 +109,13 @@ def _next_alarm_label(alarms):
 
 
 class ClocksWindow(Gtk.ApplicationWindow):
-    def __init__(self, application):
+    def __init__(self, application, alarms):
         super().__init__(application=application, title=_("Clocks"))
         self.set_default_size(540, 420)
         self.set_icon_name("clockenstein-clocks")
         self.settings = Gio.Settings.new(SETTINGS_SCHEMA)
         self.settings.connect("changed::time-format", lambda *_args: self.refresh())
-        self.alarms = AlarmStore()
+        self.alarms = alarms
         self.sound = GSound.Context()
         self.sound.init(None)
         self.connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
@@ -240,7 +241,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
             self.list_box.remove(row)
         try:
             alarms = self.alarms.list()
-        except OSError as exc:
+        except (OSError, sqlite3.Error, ValueError) as exc:
             self.next_alarm_label.hide()
             label = Gtk.Label(label=_('Could not load alarms: %s') % exc, xalign=0.5)
             label.set_margin_top(24)
@@ -325,7 +326,8 @@ class ClocksWindow(Gtk.ApplicationWindow):
         try:
             self.alarms.set_enabled(alarm_id, switch.get_active())
             self._notify_alarms_changed()
-        except (KeyError, OSError):
+        except (KeyError, OSError, sqlite3.Error) as exc:
+            _show_alarm_error(self, _("Could not update alarm"), exc)
             self.refresh()
 
     def _alarm_row_activated(self, _list_box, row):
@@ -600,42 +602,54 @@ class ClocksWindow(Gtk.ApplicationWindow):
             period.connect("changed", update_time_info)
         update_time_info()
         dialog.show_all()
-        response = dialog.run()
-        if response == Gtk.ResponseType.REJECT:
+        while True:
+            response = dialog.run()
             try:
-                self.alarms.delete(alarm["id"])
-                self._notify_alarms_changed()
-            except (KeyError, OSError):
-                pass
-        elif response == Gtk.ResponseType.OK:
-            selected_days = [index for index, button in enumerate(buttons)
-                             if button.get_active()]
-            date = selected_date
-            time = get_time()
-            if not selected_days and date is None:
-                now = datetime.datetime.now()
-                date = now.date() + datetime.timedelta(
-                    days=int(datetime.datetime.combine(now.date(), time) <= now)
-                )
-            values = {
-                "time": time.strftime("%H:%M"),
-                "label": entry.get_text(),
-                "date": date.isoformat() if date else None,
-                "repeat": selected_days,
-                "enabled": alarm.get("enabled", True) if alarm else True,
-                "sound_enabled": sound_enabled.get_active(),
-                "sound": selected_sound[0],
-                "sound_interval": sound_interval.get_value_as_int(),
-            }
-            try:
-                if alarm:
-                    self.alarms.update(alarm["id"], values)
-                else:
-                    self.alarms.create(values)
-                self._notify_alarms_changed()
-            except (KeyError, ValueError, OSError):
-                pass
+                if response == Gtk.ResponseType.REJECT:
+                    self.alarms.delete(alarm["id"])
+                    self._notify_alarms_changed()
+                elif response == Gtk.ResponseType.OK:
+                    selected_days = [index for index, button in enumerate(buttons)
+                                     if button.get_active()]
+                    date = selected_date
+                    time = get_time()
+                    if not selected_days and date is None:
+                        now = datetime.datetime.now()
+                        date = now.date() + datetime.timedelta(
+                            days=int(datetime.datetime.combine(now.date(), time) <= now)
+                        )
+                    values = {
+                        "time": time.strftime("%H:%M"),
+                        "label": entry.get_text(),
+                        "date": date.isoformat() if date else None,
+                        "repeat": selected_days,
+                        "enabled": alarm.get("enabled", True) if alarm else True,
+                        "sound_enabled": sound_enabled.get_active(),
+                        "sound": selected_sound[0],
+                        "sound_interval": sound_interval.get_value_as_int(),
+                    }
+                    if alarm:
+                        self.alarms.update(alarm["id"], values)
+                    else:
+                        self.alarms.create(values)
+                    self._notify_alarms_changed()
+            except (KeyError, ValueError, OSError, sqlite3.Error) as exc:
+                message = (_("Could not delete alarm") if response == Gtk.ResponseType.REJECT
+                           else _("Could not save alarm"))
+                _show_alarm_error(dialog, message, exc)
+                continue
+            break
         dialog.destroy()
+
+
+def _show_alarm_error(parent, message, error):
+    dialog = Gtk.MessageDialog(
+        transient_for=parent, modal=True, message_type=Gtk.MessageType.ERROR,
+        buttons=Gtk.ButtonsType.CLOSE, text=message,
+    )
+    dialog.format_secondary_text(str(error))
+    dialog.run()
+    dialog.destroy()
 
 
 def _alarm_time_info(alarm):
@@ -687,12 +701,17 @@ def _activate(application):
     if windows:
         windows[0].present()
     else:
+        try:
+            alarms = AlarmStore()
+        except (OSError, sqlite3.Error) as exc:
+            _show_alarm_error(None, _("Could not open alarm database"), exc)
+            return
         css = Gtk.CssProvider()
         css.load_from_path(os.path.join(os.path.dirname(__file__), "style.css"))
         Gtk.StyleContext.add_provider_for_screen(
             Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
-        ClocksWindow(application).show_all()
+        ClocksWindow(application, alarms).show_all()
 
 
 def main():

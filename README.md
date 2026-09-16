@@ -43,7 +43,11 @@ Just like the daemon, it is started via XDG autostart, and it runs as a systemd 
 
 `tools/dbus-calendar-client.py` simulates an applet which shows calendar events (similar to the Cinnamon clock applet)
 
-The local cache is in `~/.local/share/clockenstein`.
+Clockenstein stores its data in `~/.local/share/clockenstein`:
+
+- Alarms are stored in `alarms.db`, a SQLite database shared by Clocks and the daemon.
+- Local calendars are stored as iCalendar (`.ics`) files.
+- Google and CalDAV account information and cached events are stored in JSON files.
 
 ### Limits, synchronization frequencies and ranges
 
