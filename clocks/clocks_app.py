@@ -138,13 +138,16 @@ class ClocksWindow(Gtk.ApplicationWindow):
         layout.pack_start(scroll, True, True, 0)
         self.add(layout)
         self.order_refresh_source = 0
-        self.service_status_source = 0
+        self._service_running = {BUS_NAME: False, AGENT_BUS_NAME: False}
         self.refresh()
         self._schedule_order_refresh()
-        self._update_service_warning()
-        self.service_status_source = GLib.timeout_add_seconds(
-            5, self._update_service_warning
-        )
+        self._service_watches = [
+            Gio.bus_watch_name_on_connection(
+                self.connection, name, Gio.BusNameWatcherFlags.NONE,
+                self._service_appeared, self._service_vanished,
+            )
+            for name in self._service_running
+        ]
 
     def _destroyed(self, _window):
         if self.subscription:
@@ -153,9 +156,9 @@ class ClocksWindow(Gtk.ApplicationWindow):
         if self.order_refresh_source:
             GLib.source_remove(self.order_refresh_source)
             self.order_refresh_source = 0
-        if self.service_status_source:
-            GLib.source_remove(self.service_status_source)
-            self.service_status_source = 0
+        for watch in self._service_watches:
+            Gio.bus_unwatch_name(watch)
+        self._service_watches.clear()
 
     def _schedule_order_refresh(self):
         now = datetime.datetime.now()
@@ -168,29 +171,24 @@ class ClocksWindow(Gtk.ApplicationWindow):
         self._schedule_order_refresh()
         return GLib.SOURCE_REMOVE
 
-    def _service_is_running(self, name):
-        try:
-            result = self.connection.call_sync(
-                "org.freedesktop.DBus", "/org/freedesktop/DBus",
-                "org.freedesktop.DBus", "NameHasOwner", GLib.Variant("(s)", (name,)),
-                GLib.VariantType.new("(b)"), Gio.DBusCallFlags.NONE, 1000, None,
-            )
-            return result.unpack()[0]
-        except GLib.Error:
-            return False
+    def _service_appeared(self, _connection, name, _owner):
+        self._service_running[name] = True
+        self._update_service_warning()
+
+    def _service_vanished(self, _connection, name):
+        self._service_running[name] = False
+        self._update_service_warning()
 
     def _update_service_warning(self):
-        daemon_running = self._service_is_running(BUS_NAME)
-        if not daemon_running:
+        if not self._service_running[BUS_NAME]:
             message = _("The Clockenstein daemon is not running.")
-        elif not self._service_is_running(AGENT_BUS_NAME):
+        elif not self._service_running[AGENT_BUS_NAME]:
             message = _("The notification agent is not running.")
         else:
             self.service_warning.hide()
-            return GLib.SOURCE_CONTINUE
+            return
         self.service_warning_label.set_text(message + "\n" + _("Alarms will not ring."))
         self.service_warning.show()
-        return GLib.SOURCE_CONTINUE
 
     def _alarms_changed(self, *_args):
         self.refresh()
