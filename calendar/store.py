@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import re
+import sys
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -142,10 +143,15 @@ class LocalStore:
             for component in self._load_calendar(info["id"]).walk():
                 if component.name != "VEVENT":
                     continue
-                ev = _component_to_dict(component, self.timezone)
-                if start and ev["date_end"] < start:
-                    continue
-                if end and ev["date_start"] > end:
+                try:
+                    ev = _component_to_dict(component, self.timezone)
+                    if start and ev["date_end"] < start:
+                        continue
+                    if end and ev["date_start"] > end:
+                        continue
+                except (AttributeError, KeyError, TypeError, ValueError, OverflowError) as exc:
+                    print(f"clockenstein: Could not read event {component.get('uid', '(no UID)')} "
+                          f"in {self._path(info['id'])}: {exc}", file=sys.stderr, flush=True)
                     continue
                 ev.update(calendar_id=info["id"], calendar_name=info["name"],
                           calendar_color=info["color"], provider="local",
