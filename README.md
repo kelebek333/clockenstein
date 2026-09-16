@@ -54,6 +54,10 @@ we share one key for all users.
 
 We sync Google every 2 hours.
 
+To limit API requests, we only read the list of Google calendars during account
+setup. Event refreshes do not discover new calendars or update calendar names
+and colours changed in Google after setup.
+
 We want a maximum of 2500 events per Google calendar in order to be able to sync in a single
 API request.
 
