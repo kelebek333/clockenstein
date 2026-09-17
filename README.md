@@ -41,6 +41,10 @@ displays a reminder window with dismiss and snooze buttons.
 
 Just like the daemon, it is started via XDG autostart, and it runs as a systemd user service which is respawned automatically when it dies.
 
+`clockenstein-cli` is a CLI tool for troubleshooting. Mainly to query the databases in read-only mode.
+
+Database contents can include personal event details, so review output before sharing it.
+
 `tools/dbus-calendar-client.py` simulates an applet which shows calendar events (similar to the Cinnamon clock applet)
 
 Clockenstein stores its data in `~/.local/share/clockenstein`:
@@ -125,6 +129,7 @@ python3-google-auth-httplib2
 python3-google-auth-oauthlib
 python3-googleapi
 python3-icalendar
+python3-rich
 python3-setproctitle
 python3-xapp
 ```

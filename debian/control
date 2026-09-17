@@ -34,6 +34,7 @@ Depends:
  python3-google-auth-oauthlib,
  python3-googleapi,
  python3-icalendar,
+ python3-rich,
  python3-setproctitle,
  python3-xapp,
 Suggests:
@@ -41,6 +42,7 @@ Suggests:
 Description: Background service for Clockenstein
  Clockenstein Daemon syncs online calendars, schedules event reminders and
  alarms, and provides the D-Bus service used by desktop clients.
+ It also includes clockenstein-cli to inspect the local databases.
 
 Package: clockenstein-notification-agent
 Architecture: all

@@ -94,6 +94,13 @@ launcher_conf.set('calendar_dir', calendar_dir)
 launcher_conf.set('clocks_dir', clocks_dir)
 launcher_conf.set('daemon_dir', daemon_dir)
 launcher_conf.set('agent_dir', agent_dir)
+install_data(
+  'cli/cli_app.py',
+  rename: 'clockenstein-cli',
+  install_dir: bindir,
+  install_mode: 'rwxr-xr-x',
+)
+
 configure_file(
   input: 'data/clockenstein-calendar.in',
   output: 'clockenstein-calendar',
