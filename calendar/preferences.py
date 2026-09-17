@@ -2,7 +2,7 @@ import datetime
 
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from gi.repository import Gtk, Gio
 from xapp.util import l10n
 
 _ = l10n("clockenstein")
@@ -48,6 +48,14 @@ class PreferencesDialog(Gtk.Dialog):
         combo.set_active_id(settings.get_string("time-format"))
         combo.connect("changed", self._time_format_changed, settings)
         row.pack_end(combo, False, False, 0)
+        box.pack_start(row, False, False, 0)
+
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        label = Gtk.Label(label=_("Show week numbers"), xalign=0)
+        row.pack_start(label, True, True, 0)
+        switch = Gtk.Switch(valign=Gtk.Align.CENTER)
+        settings.bind("calendar-show-week-numbers", switch, "active", Gio.SettingsBindFlags.DEFAULT)
+        row.pack_end(switch, False, False, 0)
         box.pack_start(row, False, False, 0)
 
         self.show_all()

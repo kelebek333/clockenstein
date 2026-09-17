@@ -14,6 +14,11 @@
       <summary>First day of the week</summary>
       <description>Use the locale default, Monday or Sunday.</description>
     </key>
+    <key name="calendar-show-week-numbers" type="b">
+      <default>false</default>
+      <summary>Show week numbers</summary>
+      <description>Show ISO week numbers in the mini-calendar.</description>
+    </key>
     <key name="time-format" type="s">
       <choices>
         <choice value="locale"/>

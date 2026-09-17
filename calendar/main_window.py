@@ -44,6 +44,7 @@ class MainWindow(Gtk.Window):
             "changed::first-day-of-week", self._first_weekday_changed
         )
         self.settings.connect("changed::time-format", self._time_format_changed)
+        self.settings.connect("changed::calendar-show-week-numbers", self._show_week_numbers_changed)
         width = self.settings.get_int("calendar-window-width")
         height = self.settings.get_int("calendar-window-height")
         self.set_default_size(width, height)
@@ -258,7 +259,8 @@ class MainWindow(Gtk.Window):
         for side in ("top", "bottom", "start", "end"):
             getattr(outer, f"set_margin_{side}")(8)
         self.mini_cal = MiniCalendar(
-            self.current_date, self._on_mini_date_selected, self.first_weekday
+            self.current_date, self._on_mini_date_selected, self.first_weekday,
+            self.settings.get_boolean("calendar-show-week-numbers")
         )
         outer.pack_start(self.mini_cal, False, False, 0)
         outer.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 4)
@@ -310,6 +312,9 @@ class MainWindow(Gtk.Window):
         self.week_view.set_time_format(self.time_format)
         self.day_view.set_time_format(self.time_format)
         self._refresh(refresh_remote=False)
+
+    def _show_week_numbers_changed(self, settings, _key):
+        self.mini_cal.set_show_week_numbers(settings.get_boolean("calendar-show-week-numbers"))
 
     def _show_about(self, _item):
         dialog = Gtk.AboutDialog(transient_for=self, modal=True)
