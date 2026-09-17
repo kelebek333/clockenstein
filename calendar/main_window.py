@@ -330,10 +330,10 @@ class MainWindow(Gtk.Window):
     def _populate_calendar_list(self, events):
         for child in self.visible_calendar_box.get_children():
             self.visible_calendar_box.remove(child)
-        for cal in self._sorted_calendars():
-            if cal.get("visible", True):
-                label = self._calendar_label(cal)
-                if not self._calendar_available(cal):
+        for calendar_info in self._sorted_calendars():
+            if calendar_info.get("visible", True):
+                label = self._calendar_label(calendar_info)
+                if not self._calendar_available(calendar_info):
                     label.set_opacity(0.5)
                 self.visible_calendar_box.pack_start(label, False, False, 0)
         self.visible_calendar_box.show_all()
@@ -359,15 +359,15 @@ class MainWindow(Gtk.Window):
             "restricted": RESTRICTED_RANGE,
         }
         calendars = []
-        for cal in self.store.google.list_calendars():
-            if not cal.get("visible", True) or cal.get("sync_range") == "too-big":
+        for calendar_info in self.store.google.list_calendars():
+            if not calendar_info.get("visible", True) or calendar_info.get("sync_range") == "too-big":
                 continue
-            past_days, future_days = ranges.get(cal.get("sync_range", "normal"),
+            past_days, future_days = ranges.get(calendar_info.get("sync_range", "normal"),
                                                 NORMAL_RANGE)
             synced_start = today - datetime.timedelta(days=past_days)
             synced_end = today + datetime.timedelta(days=future_days)
             if start < synced_start or end > synced_end:
-                calendars.append(cal["name"])
+                calendars.append(calendar_info["name"])
         return calendars
 
     def _update_range_infobar(self):
@@ -465,12 +465,12 @@ class MainWindow(Gtk.Window):
             box.remove(child)
 
         calendars = self.store.list_calendars()
-        accounts = [(_("Local"), "local", [c for c in calendars if c["provider"] == "local"],
+        accounts = [(_("Local"), "local", [calendar_info for calendar_info in calendars if calendar_info["provider"] == "local"],
                      None, None)]
         account_keys = []
-        for cal in calendars:
-            key = (cal["provider"], cal.get("account_id"))
-            if cal["provider"] != "local" and key not in account_keys:
+        for calendar_info in calendars:
+            key = (calendar_info["provider"], calendar_info.get("account_id"))
+            if calendar_info["provider"] != "local" and key not in account_keys:
                 account_keys.append(key)
         states = {
             **{("google", s["id"]): s for s in self.store.google.account_states()},
@@ -483,8 +483,8 @@ class MainWindow(Gtk.Window):
             frequency = (_("Sync every 2 hours") if provider == "google"
                          else _("Sync every 15 minutes"))
             accounts.append((label, (provider, account_id),
-                             [c for c in calendars if c["provider"] == provider
-                              and c.get("account_id") == account_id], status, frequency))
+                             [calendar_info for calendar_info in calendars if calendar_info["provider"] == provider
+                              and calendar_info.get("account_id") == account_id], status, frequency))
 
         table = Gtk.Grid(column_spacing=16, row_spacing=4)
         table.set_hexpand(True)
@@ -528,8 +528,8 @@ class MainWindow(Gtk.Window):
             row += 1
 
             calendar_groups = [(_("Local calendars"), items)] if account_id == "local" else [
-                (_("My Calendars"), [cal for cal in items if cal.get("writable", False)]),
-                (_("Other Calendars"), [cal for cal in items if not cal.get("writable", False)]),
+                (_("My Calendars"), [calendar_info for calendar_info in items if calendar_info.get("writable", False)]),
+                (_("Other Calendars"), [calendar_info for calendar_info in items if not calendar_info.get("writable", False)]),
             ]
             for group_name, group_items in calendar_groups:
                 if not group_items:
@@ -539,67 +539,67 @@ class MainWindow(Gtk.Window):
                 table.attach(group_label, 0, row, 6, 1)
                 row += 1
 
-                for cal in group_items:
-                    calendar_label = self._calendar_label(cal)
+                for calendar_info in group_items:
+                    calendar_label = self._calendar_label(calendar_info)
                     calendar_label.set_margin_start(32)
                     status = Gtk.Label(
-                        label=(self._calendar_sync_status_label(cal)
-                               if cal["provider"] != "local" else ""), xalign=0
+                        label=(self._calendar_sync_status_label(calendar_info)
+                               if calendar_info["provider"] != "local" else ""), xalign=0
                     )
                     status.set_ellipsize(Pango.EllipsizeMode.END)
                     status.set_max_width_chars(32)
-                    status.set_tooltip_text(self._calendar_sync_status_label(cal))
+                    status.set_tooltip_text(self._calendar_sync_status_label(calendar_info))
                     status.get_style_context().add_class("dim-label")
                     visibility = Gtk.Switch()
-                    visibility.set_active(cal.get("visible", True))
+                    visibility.set_active(calendar_info.get("visible", True))
                     visibility.set_halign(Gtk.Align.CENTER)
                     visibility.set_valign(Gtk.Align.CENTER)
                     visibility.set_tooltip_text(_("Show this calendar"))
-                    visibility.connect("notify::active", self._calendar_switch_toggled, cal)
-                    reminders = self._calendar_reminders_toggle(cal)
+                    visibility.connect("notify::active", self._calendar_switch_toggled, calendar_info)
+                    reminders = self._calendar_reminders_toggle(calendar_info)
                     refresh = Gtk.Button.new_from_icon_name(
                         "xsi-view-refresh-symbolic", Gtk.IconSize.MENU
                     )
                     refresh.set_relief(Gtk.ReliefStyle.NONE)
-                    elapsed = (datetime.datetime.now().timestamp() - int(cal["last_sync"])
-                               if cal.get("last_sync") else None)
-                    recently_synced = (elapsed is not None and not cal.get("sync_error")
+                    elapsed = (datetime.datetime.now().timestamp() - int(calendar_info["last_sync"])
+                               if calendar_info.get("last_sync") else None)
+                    recently_synced = (elapsed is not None and not calendar_info.get("sync_error")
                                        and elapsed < 5 * 60)
                     if recently_synced:
                         refresh.set_sensitive(False)
                         refresh.set_tooltip_text(
                             _("Already synchronized less than 5 minutes ago")
                         )
-                        if cal.get("sync_range") != "too-big":
+                        if calendar_info.get("sync_range") != "too-big":
                             GLib.timeout_add_seconds(
                                 max(1, int(5 * 60 - elapsed) + 1),
-                                self._refresh_cooldown_finished, refresh, cal,
+                                self._refresh_cooldown_finished, refresh, calendar_info,
                             )
                     else:
                         refresh.set_tooltip_text(_("Refresh this calendar"))
-                    refresh.connect("clicked", self._refresh_calendar, cal)
+                    refresh.connect("clicked", self._refresh_calendar, calendar_info)
                     row_widgets = [calendar_label, status, reminders, visibility, refresh]
                     sync_range = Gtk.Label(
-                        label=(self._google_sync_range_label(cal)
-                               if cal["provider"] == "google" else ""), xalign=0
+                        label=(self._google_sync_range_label(calendar_info)
+                               if calendar_info["provider"] == "google" else ""), xalign=0
                     )
                     sync_range.get_style_context().add_class("dim-label")
                     row_widgets.append(sync_range)
-                    if not self._calendar_available(cal):
+                    if not self._calendar_available(calendar_info):
                         for widget in row_widgets:
                             widget.set_opacity(0.5)
-                    if self._refreshing or cal.get("sync_range") == "too-big":
+                    if self._refreshing or calendar_info.get("sync_range") == "too-big":
                         for widget in row_widgets:
                             widget.set_sensitive(False)
                     actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
                     actions.set_halign(Gtk.Align.START)
-                    if cal["provider"] == "local":
+                    if calendar_info["provider"] == "local":
                         edit = Gtk.Button.new_from_icon_name(
                             "xsi-document-edit-symbolic", Gtk.IconSize.MENU
                         )
                         edit.set_relief(Gtk.ReliefStyle.NONE)
                         edit.set_tooltip_text(_("Edit"))
-                        edit.connect("clicked", self._edit_local_calendar, cal, box,
+                        edit.connect("clicked", self._edit_local_calendar, calendar_info, box,
                                      box.get_toplevel())
                         actions.pack_start(edit, False, False, 0)
                         remove = Gtk.Button.new_from_icon_name(
@@ -607,7 +607,7 @@ class MainWindow(Gtk.Window):
                         )
                         remove.set_relief(Gtk.ReliefStyle.NONE)
                         remove.set_tooltip_text(_("Remove"))
-                        remove.connect("clicked", self._remove_local_calendar, cal, box,
+                        remove.connect("clicked", self._remove_local_calendar, calendar_info, box,
                                        box.get_toplevel())
                         actions.pack_start(remove, False, False, 0)
                     else:
@@ -623,7 +623,7 @@ class MainWindow(Gtk.Window):
         box.pack_start(table, False, False, 0)
         box.show_all()
 
-    def _refresh_cooldown_finished(self, button, cal):
+    def _refresh_cooldown_finished(self, button, calendar_info):
         if button.get_parent() is not None and not self._refreshing:
             button.set_sensitive(True)
             button.set_tooltip_text(_("Refresh this calendar"))
@@ -631,40 +631,40 @@ class MainWindow(Gtk.Window):
 
     def _sorted_calendars(self):
         calendars = self.store.list_calendars()
-        local = [cal for cal in calendars if cal["provider"] == "local"]
-        google = [cal for cal in calendars if cal["provider"] == "google"]
+        local = [calendar_info for calendar_info in calendars if calendar_info["provider"] == "local"]
+        google = [calendar_info for calendar_info in calendars if calendar_info["provider"] == "google"]
         account_order = {state["id"]: index for index, state in enumerate(
                          self.store.google.account_states())}
-        google.sort(key=lambda cal: (
-            account_order.get(cal.get("account_id"), len(account_order)),
-            *self._google_calendar_sort_key(cal),
+        google.sort(key=lambda calendar_info: (
+            account_order.get(calendar_info.get("account_id"), len(account_order)),
+            *self._google_calendar_sort_key(calendar_info),
         ))
-        caldav = [cal for cal in calendars if cal["provider"] == "caldav"]
+        caldav = [calendar_info for calendar_info in calendars if calendar_info["provider"] == "caldav"]
         return local + google + caldav
 
     @staticmethod
-    def _google_calendar_sort_key(cal):
-        return (not cal.get("writable", False),
-                not cal.get("primary", cal.get("id") == cal.get("account_id")),
-                cal["name"].casefold())
+    def _google_calendar_sort_key(calendar_info):
+        return (not calendar_info.get("writable", False),
+                not calendar_info.get("primary", calendar_info.get("id") == calendar_info.get("account_id")),
+                calendar_info["name"].casefold())
 
     @staticmethod
-    def _google_sync_range_label(cal):
+    def _google_sync_range_label(calendar_info):
         return {
             "normal": _("2 years ahead"),
             "limited": _("1 year ahead"),
             "restricted": _("3 months ahead"),
             "too-big": _("Too many events"),
-        }.get(cal.get("sync_range", "normal"), _("2 years ahead"))
+        }.get(calendar_info.get("sync_range", "normal"), _("2 years ahead"))
 
     @staticmethod
-    def _calendar_sync_status_label(cal):
-        error = cal.get("sync_error")
+    def _calendar_sync_status_label(calendar_info):
+        error = calendar_info.get("sync_error")
         if error:
             return _("Error: %s") % error
-        if cal.get("sync_range") == "too-big":
+        if calendar_info.get("sync_range") == "too-big":
             return _("Not synchronized")
-        last_sync = cal.get("last_sync")
+        last_sync = calendar_info.get("last_sync")
         if last_sync:
             elapsed = max(0, int(datetime.datetime.now().timestamp()) - int(last_sync))
             if elapsed < 60:
@@ -685,15 +685,15 @@ class MainWindow(Gtk.Window):
         return _("Not synced yet")
 
     @staticmethod
-    def _calendar_label(cal):
+    def _calendar_label(calendar_info):
         content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         swatch = Gtk.DrawingArea()
         swatch.set_size_request(12, 12)
         rgba = Gdk.RGBA()
-        rgba.parse(cal.get("color", DEFAULT_COLOR))
+        rgba.parse(calendar_info.get("color", DEFAULT_COLOR))
         swatch.connect("draw", draw_centered_circle, rgba)
         content.pack_start(swatch, False, False, 0)
-        name = Gtk.Label(label=cal["name"])
+        name = Gtk.Label(label=calendar_info["name"])
         name.set_xalign(0)
         name.set_ellipsize(Pango.EllipsizeMode.END)
         content.pack_start(name, True, True, 0)
@@ -756,17 +756,17 @@ class MainWindow(Gtk.Window):
         popover.popdown()
         dialog.response(response)
 
-    def _edit_local_calendar(self, _button, cal, calendar_box, parent):
+    def _edit_local_calendar(self, _button, calendar_info, calendar_box, parent):
         dialog = Gtk.Dialog(title=_("Edit Calendar"), transient_for=parent, modal=True)
         dialog.add_buttons(_("Cancel"), Gtk.ResponseType.CANCEL, _("Save"), Gtk.ResponseType.OK)
         box = dialog.get_content_area()
         box.set_spacing(8)
         box.set_border_width(12)
         name = Gtk.Entry()
-        name.set_text(cal["name"])
+        name.set_text(calendar_info["name"])
         color = Gtk.ColorButton()
         rgba = Gdk.RGBA()
-        rgba.parse(cal.get("color", DEFAULT_COLOR))
+        rgba.parse(calendar_info.get("color", DEFAULT_COLOR))
         color.set_rgba(rgba)
         box.pack_start(Gtk.Label(label=_("Name"), xalign=0), False, False, 0)
         box.pack_start(name, False, False, 0)
@@ -775,14 +775,14 @@ class MainWindow(Gtk.Window):
         box.show_all()
         if dialog.run() == Gtk.ResponseType.OK and name.get_text().strip():
             self.store.update_local_calendar(
-                cal["id"], name.get_text().strip(), color.get_rgba().to_string()
+                calendar_info["id"], name.get_text().strip(), color.get_rgba().to_string()
             )
             self._fill_calendar_box(calendar_box)
             self._update_views()
             notify_changed()
         dialog.destroy()
 
-    def _remove_local_calendar(self, _button, cal, calendar_box, parent):
+    def _remove_local_calendar(self, _button, calendar_info, calendar_box, parent):
         if len(self.store.local.list_calendars()) <= 1:
             warning = Gtk.MessageDialog(
                 transient_for=parent, message_type=Gtk.MessageType.INFO,
@@ -793,14 +793,14 @@ class MainWindow(Gtk.Window):
             return
         confirm = Gtk.MessageDialog(
             transient_for=parent, message_type=Gtk.MessageType.WARNING,
-            buttons=Gtk.ButtonsType.CANCEL, text=_("Remove %s?") % cal['name'],
+            buttons=Gtk.ButtonsType.CANCEL, text=_("Remove %s?") % calendar_info['name'],
         )
         confirm.add_button(_("Remove"), Gtk.ResponseType.OK)
         confirm.format_secondary_text(_("All the events from this calendar will be permanently removed."))
         response = confirm.run()
         confirm.destroy()
         if response == Gtk.ResponseType.OK:
-            self.store.delete_local_calendar(cal["id"])
+            self.store.delete_local_calendar(calendar_info["id"])
             self._fill_calendar_box(calendar_box)
             self._update_views()
             notify_changed()
@@ -809,22 +809,22 @@ class MainWindow(Gtk.Window):
         self.status_label.set_text(message)
         self.status_label.set_visible(bool(message))
 
-    def _calendar_switch_toggled(self, switch, _property, cal):
+    def _calendar_switch_toggled(self, switch, _property, calendar_info):
         visible = switch.get_active()
-        self.store.set_visible(cal["provider"], cal["id"], visible, cal.get("account_id"))
-        if cal["provider"] != "local":
+        self.store.set_visible(calendar_info["provider"], calendar_info["id"], visible, calendar_info.get("account_id"))
+        if calendar_info["provider"] != "local":
             # Remote calendars: Empty cache when hidden, refresh when shown
             if visible:
-                self._set_status(_("Refresh requested for %s…") % cal["name"])
-                self._refresh_calendar_worker(cal)
+                self._set_status(_("Refresh requested for %s…") % calendar_info["name"])
+                self._refresh_calendar_worker(calendar_info)
             else:
-                self.store.clear_calendar_events(cal["provider"], cal["id"], cal["account_id"])
+                self.store.clear_calendar_events(calendar_info["provider"], calendar_info["id"], calendar_info["account_id"])
         self._update_views()
         notify_changed()
 
-    def _calendar_reminders_toggle(self, cal):
+    def _calendar_reminders_toggle(self, calendar_info):
         button = Gtk.ToggleButton()
-        button.set_active(cal.get("reminders", True))
+        button.set_active(calendar_info.get("reminders", True))
         button.set_halign(Gtk.Align.CENTER)
         button.set_valign(Gtk.Align.CENTER)
         button.set_image(Gtk.Image.new_from_icon_name(
@@ -833,34 +833,34 @@ class MainWindow(Gtk.Window):
             Gtk.IconSize.MENU,
         ))
         button.set_tooltip_text(_("Remind me about events in this calendar"))
-        button.connect("toggled", self._calendar_reminders_toggled, cal)
+        button.connect("toggled", self._calendar_reminders_toggled, calendar_info)
         return button
 
-    def _calendar_reminders_toggled(self, button, cal):
+    def _calendar_reminders_toggled(self, button, calendar_info):
         enabled = button.get_active()
         button.set_image(Gtk.Image.new_from_icon_name(
             "xsi-audio-volume-high-symbolic" if enabled else "xsi-audio-volume-muted-symbolic",
             Gtk.IconSize.MENU,
         ))
         self.store.set_reminders(
-            cal["provider"], cal["id"], enabled, cal.get("account_id")
+            calendar_info["provider"], calendar_info["id"], enabled, calendar_info.get("account_id")
         )
         notify_changed()
 
-    def _refresh_calendar(self, button, cal):
+    def _refresh_calendar(self, button, calendar_info):
         button.set_sensitive(False)
         button.set_tooltip_text(_("Refresh requested"))
-        self._set_status(_("Refresh requested for %s…") % cal["name"])
-        self._refresh_calendar_worker(cal, button)
+        self._set_status(_("Refresh requested for %s…") % calendar_info["name"])
+        self._refresh_calendar_worker(calendar_info, button)
 
     @run_async
-    def _refresh_calendar_worker(self, cal, button=None):
+    def _refresh_calendar_worker(self, calendar_info, button=None):
         try:
             connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
             connection.call_sync(
                 BUS_NAME, BUS_PATH, BUS_INTERFACE, "RefreshCalendar",
                 GLib.Variant("(sss)", (
-                    cal["provider"], cal.get("account_id", ""), cal["id"]
+                    calendar_info["provider"], calendar_info.get("account_id", ""), calendar_info["id"]
                 )),
                 None, Gio.DBusCallFlags.NONE, -1, None,
             )
@@ -1132,7 +1132,7 @@ class MainWindow(Gtk.Window):
     def _on_event_activated(self, event):
         calendars = self._get_editable_calendars(event)
         editable = event.get("editable", True) and any(
-            cal["id"] == event["calendar_id"] for cal in calendars
+            calendar_info["id"] == event["calendar_id"] for calendar_info in calendars
         )
         event = {**event, "editable": editable}
         if not editable:
@@ -1145,14 +1145,14 @@ class MainWindow(Gtk.Window):
         dialog.destroy()
 
     def _get_editable_calendars(self, event=None):
-        calendars = [cal for cal in self.store.writable_calendars()
-                     if cal.get("visible", True)]
+        calendars = [calendar_info for calendar_info in self.store.writable_calendars()
+                     if calendar_info.get("visible", True)]
         if self._refreshing:
-            calendars = [cal for cal in calendars if cal["provider"] == "local"]
+            calendars = [calendar_info for calendar_info in calendars if calendar_info["provider"] == "local"]
         if event is not None:
-            calendars = [cal for cal in calendars
-                         if cal.get("provider") == event.get("provider")
-                         and cal.get("account_id") == event.get("account_id")]
+            calendars = [calendar_info for calendar_info in calendars
+                         if calendar_info.get("provider") == event.get("provider")
+                         and calendar_info.get("account_id") == event.get("account_id")]
         return calendars
 
     def _new_event(self, default_date=None):

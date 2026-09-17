@@ -70,7 +70,7 @@ class LocalStore:
     def update_calendar(self, calendar_id, name, color):
         self.database.update_calendar("local", "local", calendar_id,
                                       name=name.strip() or _("Calendar"), color=color)
-        return next(c for c in self.list_calendars() if c["id"] == calendar_id)
+        return next(calendar for calendar in self.list_calendars() if calendar["id"] == calendar_id)
 
     def delete_calendar(self, calendar_id):
         if not self.database.delete_local_calendar(calendar_id):
@@ -162,7 +162,7 @@ class CalendarManager:
         self._backend(provider).set_reminders(calendar_id, enabled, account_id)
 
     def writable_calendars(self):
-        return [c for c in self.list_calendars() if c.get("writable") and c.get("available")]
+        return [calendar for calendar in self.list_calendars() if calendar.get("writable") and calendar.get("available")]
 
     def create_event(self, data):
         return self._backend(data.get("provider", "local")).create_event(data)
@@ -187,49 +187,49 @@ class CalendarManager:
                 + self.caldav.refresh(start, end))
 
 
-def _event_sort_key(e):
-    return e["date_start"], e.get("time_start") or datetime.time.min
+def _event_sort_key(event):
+    return event["date_start"], event.get("time_start") or datetime.time.min
 
 
-def _apply_data(ev: Event, data: dict, timezone: datetime.tzinfo):
-    ev.add("summary", data.get("summary", ""))
+def _apply_data(component: Event, data: dict, timezone: datetime.tzinfo):
+    component.add("summary", data.get("summary", ""))
     if data.get("location"):
-        ev.add("location", data["location"])
+        component.add("location", data["location"])
     if data.get("description"):
-        ev.add("description", data["description"])
+        component.add("description", data["description"])
     date_start = data.get("date_start") or datetime.date.today()
     date_end = data.get("date_end") or date_start
     if data.get("all_day", True):
-        ev.add("dtstart", date_start)
-        ev.add("dtend", date_end + datetime.timedelta(days=1))
+        component.add("dtstart", date_start)
+        component.add("dtend", date_end + datetime.timedelta(days=1))
     else:
-        ev.add("dtstart", datetime.datetime.combine(
+        component.add("dtstart", datetime.datetime.combine(
             date_start, data.get("time_start") or datetime.time(9), timezone))
-        ev.add("dtend", datetime.datetime.combine(
+        component.add("dtend", datetime.datetime.combine(
             date_end, data.get("time_end") or datetime.time(10), timezone))
 
 
 def _component_to_dict(component, timezone: datetime.tzinfo) -> dict:
-    dtstart = component.get("dtstart").dt
-    all_day = isinstance(dtstart, datetime.date) and not isinstance(dtstart, datetime.datetime)
+    start_value = component.get("dtstart").dt
+    all_day = isinstance(start_value, datetime.date) and not isinstance(start_value, datetime.datetime)
     if component.get("dtend") is not None:
-        dtend = component["dtend"].dt
+        end_value = component["dtend"].dt
     elif component.get("duration") is not None:
-        dtend = dtstart + component["duration"].dt
+        end_value = start_value + component["duration"].dt
     else:
-        dtend = dtstart + datetime.timedelta(days=1) if all_day else dtstart
-    source_start, source_end = dtstart, dtend
+        end_value = start_value + datetime.timedelta(days=1) if all_day else start_value
+    source_start, source_end = start_value, end_value
     if all_day:
-        source_end = dtend - datetime.timedelta(days=1)
-        date_start, date_end = dtstart, source_end
+        source_end = end_value - datetime.timedelta(days=1)
+        date_start, date_end = start_value, source_end
         time_start = time_end = None
     else:
-        if dtstart.tzinfo is not None:
-            dtstart = dtstart.astimezone(timezone)
-        if dtend.tzinfo is not None:
-            dtend = dtend.astimezone(timezone)
-        date_start, date_end = dtstart.date(), dtend.date()
-        time_start, time_end = dtstart.time().replace(tzinfo=None), dtend.time().replace(tzinfo=None)
+        if start_value.tzinfo is not None:
+            start_value = start_value.astimezone(timezone)
+        if end_value.tzinfo is not None:
+            end_value = end_value.astimezone(timezone)
+        date_start, date_end = start_value.date(), end_value.date()
+        time_start, time_end = start_value.time().replace(tzinfo=None), end_value.time().replace(tzinfo=None)
     return {"uid": str(component.get("uid", "")), "summary": str(component.get("summary", "")),
             "location": str(component.get("location", "")), "description": str(component.get("description", "")),
             "all_day": all_day, "date_start": date_start, "date_end": date_end,

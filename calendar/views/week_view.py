@@ -151,10 +151,10 @@ class WeekView(Gtk.Box):
                 lbl.get_style_context().remove_class("clockenstein-selected-week-day")
 
         by_date: dict[datetime.date, list[dict]] = {}
-        for ev in events:
-            day = ev["date_start"]
-            while day <= ev.get("date_end", day):
-                by_date.setdefault(day, []).append(ev)
+        for event in events:
+            day = event["date_start"]
+            while day <= event.get("date_end", day):
+                by_date.setdefault(day, []).append(event)
                 day += datetime.timedelta(days=1)
 
         week_has_events = any(by_date.get(day) for day in week)
@@ -307,22 +307,22 @@ class _DayColumn(Gtk.Overlay):
             self.event_layer.remove(child)
         self._positioned_events = []
 
-        for ev in events:
-            full_day = ev["all_day"] or ev["time_start"] is None
+        for event in events:
+            full_day = event["all_day"] or event["time_start"] is None
             if full_day:
                 start_minutes, end_minutes = DAY_START_MINUTE, DAY_END_MINUTE
             else:
-                start_minutes, end_minutes = _timed_segment_minutes(ev, day)
+                start_minutes, end_minutes = _timed_segment_minutes(event, day)
                 if end_minutes <= start_minutes:
                     continue
-            btn = _WeekEventButton()
-            btn.get_style_context().add_class("clockenstein-week-event")
-            btn.get_style_context().add_class("clockenstein-week-timeline-event")
-            apply_tinted_event_color(btn, ev)
-            if _event_has_ended(ev):
-                btn.set_opacity(0.5)
-            btn.connect("button-press-event", _activate_event, self.on_event, ev)
-            tooltip_markup = _event_tooltip(ev)
+            event_button = _WeekEventButton()
+            event_button.get_style_context().add_class("clockenstein-week-event")
+            event_button.get_style_context().add_class("clockenstein-week-timeline-event")
+            apply_tinted_event_color(event_button, event)
+            if _event_has_ended(event):
+                event_button.set_opacity(0.5)
+            event_button.connect("button-press-event", _activate_event, self.on_event, event)
+            tooltip_markup = _event_tooltip(event)
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             content.set_valign(Gtk.Align.CENTER if full_day else Gtk.Align.START)
             content.set_margin_top(5)
@@ -334,11 +334,11 @@ class _DayColumn(Gtk.Overlay):
             label = Gtk.Label()
             label.set_xalign(0)
             label.set_single_line_mode(True)
-            title = ev.get("summary") or _("Untitled")
+            title = event.get("summary") or _("Untitled")
             label.set_markup(f"<b>{GLib.markup_escape_text(title)}</b>")
             content.pack_start(label, False, False, 0)
-            btn.add(content)
-            for tooltip_target in (btn, content, label):
+            event_button.add(content)
+            for tooltip_target in (event_button, content, label):
                 tooltip_target.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK |
                                           Gdk.EventMask.LEAVE_NOTIFY_MASK)
                 tooltip_target.set_has_tooltip(True)
@@ -349,8 +349,8 @@ class _DayColumn(Gtk.Overlay):
             top = ALL_DAY_EVENT_MARGIN if full_day else _minute_to_y(start_minutes)
             height = (ALL_DAY_HEIGHT - 2 * ALL_DAY_EVENT_MARGIN if full_day else
                       max(1, _minute_to_y(end_minutes) - _minute_to_y(start_minutes)))
-            self.event_layer.put(btn, 0, top)
-            self._positioned_events.append({"widget": btn, "start": start_minutes,
+            self.event_layer.put(event_button, 0, top)
+            self._positioned_events.append({"widget": event_button, "start": start_minutes,
                                             "end": end_minutes, "top": top,
                                             "height": height, "content": content,
                                             "label": label, "title": title,

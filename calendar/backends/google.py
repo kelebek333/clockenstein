@@ -67,26 +67,26 @@ class GoogleBackend(RemoteBackend):
         flow = InstalledAppFlow.from_client_config(
             self._read_oauth_client_config(), scopes
         )
-        creds = flow.run_local_server(port=0, authorization_prompt_message="Opening Google sign-in…",
+        credentials = flow.run_local_server(port=0, authorization_prompt_message="Opening Google sign-in…",
                                       prompt="select_account consent")
         if progress:
             progress(_("Authorization received • Contacting Google Calendar…"))
-        service = self._build_service(creds)
+        service = self._build_service(credentials)
         if progress:
             progress(_("Loading your Google calendars…"))
         calendars = self._fetch_calendars(service)
-        primary = next((c for c in calendars if c.get("primary")), None)
+        primary = next((calendar for calendar in calendars if calendar.get("primary")), None)
         if not primary:
             raise GoogleUnavailable(_("Google did not return a primary calendar"))
         account_id = primary["id"]
         token_name = hashlib.sha256(account_id.encode()).hexdigest()[:20] + ".json"
-        self._save_credentials(token_name, creds)
+        self._save_credentials(token_name, credentials)
         account = {"id": account_id, "name": account_id, "token": token_name,
                    "scopes": scopes, "auth_provider": "clockenstein"}
         self.database.connect_account(self.provider, account,
                                       self._calendar_metadata(calendars))
         self._services[account_id] = service
-        self._credentials[account_id] = creds
+        self._credentials[account_id] = credentials
         self._errors.pop(account_id, None)
         return account_id
 
@@ -163,17 +163,17 @@ class GoogleBackend(RemoteBackend):
                 self._sync_failed(account_id, exc, target_calendar_id, start, end)
                 errors.append(f"{account_id}: {exc}")
                 continue
-            for cal in self.database.get_calendars(self.provider, account_id):
-                if target_calendar_id and cal["id"] != target_calendar_id:
+            for calendar in self.database.get_calendars(self.provider, account_id):
+                if target_calendar_id and calendar["id"] != target_calendar_id:
                     continue
-                if not cal["visible"]:
+                if not calendar["visible"]:
                     continue
-                sync_range = cal["sync_range"]
+                sync_range = calendar["sync_range"]
                 if sync_range == "too-big":
                     stats["too_big_calendars"] += 1
                     continue
                 stats["calendars"] += 1
-                download = SyncDownload(self.database.data_dir, self.provider, account_id, cal["id"], start, end)
+                download = SyncDownload(self.database.data_dir, self.provider, account_id, calendar["id"], start, end)
                 try:
                     ranges = {"normal": (start, end), "limited": limited_range,
                               "restricted": restricted_range}
@@ -185,7 +185,7 @@ class GoogleBackend(RemoteBackend):
                         if sync_range == "restricted":
                             first_page_only = True
                         raw_events, paginated = self._fetch_events(
-                            service, cal["id"], cal_start, cal_end, self.timezone, stats,
+                            service, calendar["id"], cal_start, cal_end, self.timezone, stats,
                             first_page_only=first_page_only, download=download)
                         if paginated and sync_range == "normal" and limited_range:
                             sync_range = "limited"
@@ -201,29 +201,29 @@ class GoogleBackend(RemoteBackend):
                     # Save before parsing: malformed data is precisely what we need
                     # to inspect when conversion fails. Failed downloads keep the old file.
                     download.save()
-                    events = [google_event_to_dict(raw, cal, account, True, self.timezone)
+                    events = [google_event_to_dict(raw, calendar, account, True, self.timezone)
                               for raw in raw_events if raw.get("status") != "cancelled"]
                     for event in events:
                         # Calendar permissions are applied when reading, not frozen
                         # into the event when downloading from a read-only calendar.
                         event["editable"] = event["event_type"] == "default"
-                    self.database.apply_sync(cal, events, start, end, self.timezone, sync_range)
+                    self.database.apply_sync(calendar, events, start, end, self.timezone, sync_range)
                     download.finish()
                 except Exception as exc:
                     download.finish(exc)
                     account_error = str(exc)
                     self._errors[account_id] = str(exc)
-                    self._sync_failed(account_id, exc, cal["id"])
+                    self._sync_failed(account_id, exc, calendar["id"])
                     errors.append(f"{account_id}: {exc}")
             if account_error:
                 self._services.pop(account_id, None)
             else:
                 self._errors.pop(account_id, None)
-            creds = self._credentials.get(account_id)
-            if creds is not None and account.get("token"):
+            credentials = self._credentials.get(account_id)
+            if credentials is not None and account.get("token"):
                 # Do not recreate a token file after a concurrent disconnect.
                 if any(a["id"] == account_id for a in self.accounts):
-                    self._save_credentials(account["token"], creds)
+                    self._save_credentials(account["token"], credentials)
         self.last_refresh_stats = stats
         return errors
 
@@ -289,8 +289,8 @@ class GoogleBackend(RemoteBackend):
             )
 
     def _upsert_cached(self, account_id, calendar_id, raw, source_id=None):
-        calendar = next(c for c in self.database.get_calendars(self.provider, account_id)
-                        if c["id"] == calendar_id)
+        calendar = next(calendar for calendar in self.database.get_calendars(self.provider, account_id)
+                        if calendar["id"] == calendar_id)
         event = google_event_to_dict(raw, calendar, {"id": account_id}, True, self.timezone)
         event["editable"] = event["event_type"] == "default"
         self.database.save_event(self.provider, account_id, calendar_id, event, self.timezone, source_id)
@@ -308,12 +308,12 @@ class GoogleBackend(RemoteBackend):
                     self._errors.pop(account["id"], None)
                     continue
                 scopes = account.get("scopes", SCOPES)
-                creds = Credentials.from_authorized_user_file(str(self.data_dir / account["token"]), scopes)
+                credentials = Credentials.from_authorized_user_file(str(self.data_dir / account["token"]), scopes)
                 # Older distro versions restore only the refresh token here.
                 # AuthorizedHttp refreshes lazily on the first API request.
-                if not creds.valid and not creds.refresh_token:
+                if not credentials.valid and not credentials.refresh_token:
                     raise GoogleUnavailable(_("authorization expired"))
-                self._credentials[account["id"]] = creds
+                self._credentials[account["id"]] = credentials
                 self._errors.pop(account["id"], None)
             except Exception as exc:
                 self._errors[account["id"]] = str(exc)
@@ -383,9 +383,9 @@ class GoogleBackend(RemoteBackend):
                 return items
 
     @staticmethod
-    def _build_service(creds):
+    def _build_service(credentials):
         """Build an API client whose network calls cannot hang the UI forever."""
-        http = AuthorizedHttp(creds, http=httplib2.Http(timeout=20))
+        http = AuthorizedHttp(credentials, http=httplib2.Http(timeout=20))
         return build("calendar", "v3", http=http, cache_discovery=False)
 
     @staticmethod
@@ -417,11 +417,11 @@ class GoogleBackend(RemoteBackend):
 
     @staticmethod
     def _calendar_metadata(remote):
-        return [{"id": c["id"], "name": c.get("summary", c["id"]),
-                 "color": c.get("backgroundColor", "#4285f4"),
-                 "writable": c.get("accessRole") in ("writer", "owner"),
-                 "primary": c.get("primary", False), "visible": c.get("selected", True)}
-                for c in remote]
+        return [{"id": calendar["id"], "name": calendar.get("summary", calendar["id"]),
+                 "color": calendar.get("backgroundColor", "#4285f4"),
+                 "writable": calendar.get("accessRole") in ("writer", "owner"),
+                 "primary": calendar.get("primary", False), "visible": calendar.get("selected", True)}
+                for calendar in remote]
 
     @staticmethod
     def _scopes_for_credentials():
@@ -434,18 +434,18 @@ class GoogleBackend(RemoteBackend):
         return scopes if isinstance(scopes, list) and all(isinstance(s, str) for s in scopes) else SCOPES
 
     @staticmethod
-    def _credentials_json(creds):
+    def _credentials_json(credentials):
         """Serialize credentials on both current and older distro google-auth."""
-        if hasattr(creds, "to_json"):
-            return creds.to_json()
-        expiry = getattr(creds, "expiry", None)
+        if hasattr(credentials, "to_json"):
+            return credentials.to_json()
+        expiry = getattr(credentials, "expiry", None)
         payload = {
-            "token": getattr(creds, "token", None),
-            "refresh_token": getattr(creds, "refresh_token", None),
-            "token_uri": getattr(creds, "token_uri", None),
-            "client_id": getattr(creds, "client_id", None),
-            "client_secret": getattr(creds, "client_secret", None),
-            "scopes": list(getattr(creds, "scopes", None) or []),
+            "token": getattr(credentials, "token", None),
+            "refresh_token": getattr(credentials, "refresh_token", None),
+            "token_uri": getattr(credentials, "token_uri", None),
+            "client_id": getattr(credentials, "client_id", None),
+            "client_secret": getattr(credentials, "client_secret", None),
+            "scopes": list(getattr(credentials, "scopes", None) or []),
         }
         if expiry is not None:
             payload["expiry"] = expiry.isoformat().replace("+00:00", "Z")

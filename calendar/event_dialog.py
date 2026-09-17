@@ -20,8 +20,8 @@ def _uses_12_hour_clock(time_format):
     elif time_format == "24-hour":
         return False
     else:
-        fmt = locale.nl_langinfo(locale.T_FMT)
-        return "%I" in fmt or "%r" in fmt
+        time_pattern = locale.nl_langinfo(locale.T_FMT)
+        return "%I" in time_pattern or "%r" in time_pattern
 
 
 class _DatePicker(Gtk.MenuButton):
@@ -170,12 +170,12 @@ class EventDialog(Gtk.Dialog):
 
         grid.attach(lbl(_("Calendar")), 0, 1, 1, 1)
         self.calendar_model = Gtk.ListStore(str, str)
-        for cal in self.calendar_options:
-            provider = cal.get("provider", "local")
-            owner = _("Local") if provider == "local" else cal.get("account_name", cal.get("account_id", "Google"))
+        for calendar_info in self.calendar_options:
+            provider = calendar_info.get("provider", "local")
+            owner = _("Local") if provider == "local" else calendar_info.get("account_name", calendar_info.get("account_id", "Google"))
             self.calendar_model.append([
-                cal.get("color", cal.get("calendar_color", DEFAULT_COLOR)),
-                f"{cal.get('name', cal.get('calendar_name', _('Calendar')))} — {owner}",
+                calendar_info.get("color", calendar_info.get("calendar_color", DEFAULT_COLOR)),
+                f"{calendar_info.get('name', calendar_info.get('calendar_name', _('Calendar')))} — {owner}",
             ])
         self.calendar_combo = Gtk.ComboBox.new_with_model(self.calendar_model)
         color_cell = Gtk.CellRendererText()
@@ -263,20 +263,20 @@ class EventDialog(Gtk.Dialog):
         box.show_all()
 
     def _populate(self, default_date):
-        ev = self.event
-        self.title_entry.set_text(ev.get("summary", ""))
-        self.location_entry.set_text(ev.get("location", ""))
-        self.desc_view.get_buffer().set_text(ev.get("description", ""))
+        event = self.event
+        self.title_entry.set_text(event.get("summary", ""))
+        self.location_entry.set_text(event.get("location", ""))
+        self.desc_view.get_buffer().set_text(event.get("description", ""))
 
-        all_day = ev.get("all_day", True)
+        all_day = event.get("all_day", True)
         self.allday_switch.set_active(all_day)
 
-        date = ev.get("date_start") or default_date or datetime.date.today()
-        start_time = ev.get("time_start") or datetime.datetime.now().replace(
+        date = event.get("date_start") or default_date or datetime.date.today()
+        start_time = event.get("time_start") or datetime.datetime.now().replace(
             minute=0, second=0, microsecond=0).time()
         default_end = datetime.datetime.combine(date, start_time) + datetime.timedelta(hours=1)
-        end_time = ev.get("time_end") or default_end.time()
-        end_date = ev.get("date_end") or (date if all_day else default_end.date())
+        end_time = event.get("time_end") or default_end.time()
+        end_date = event.get("date_end") or (date if all_day else default_end.date())
         self.date_picker.set_date(date)
         self.end_date_picker.set_date(end_date)
         self._set_picker_time(self.start_hour, self.start_minute, self.start_period, start_time)

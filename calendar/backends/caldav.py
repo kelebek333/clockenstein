@@ -61,7 +61,7 @@ class CalDAVBackend(RemoteBackend):
         self.database.connect_account(self.provider, account, self._calendar_metadata(calendars, account_id))
         self._configured_accounts.add(account_id)
         self._clients[account_id] = client
-        self._calendars[account_id] = {str(c.url): c for c in calendars}
+        self._calendars[account_id] = {str(remote_calendar.url): remote_calendar for remote_calendar in calendars}
         self._errors.pop(account_id, None)
         return account_id
 
@@ -91,7 +91,7 @@ class CalDAVBackend(RemoteBackend):
                 self._configured_accounts.add(account_id)
                 client, remote = self._open(account["url"], account["username"], password)
                 self._clients[account_id] = client
-                self._calendars[account_id] = {str(c.url): c for c in remote}
+                self._calendars[account_id] = {str(remote_calendar.url): remote_calendar for remote_calendar in remote}
                 self.database.update_calendar_list(self.provider, account_id, self._calendar_metadata(remote, account_id))
             except Exception as exc:
                 self._clients.pop(account_id, None)

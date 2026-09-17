@@ -46,7 +46,7 @@ def format_time(value, time_format="locale"):
     elif time_format == "24-hour":
         return value.strftime("%H:%M")
     else:
-        fmt = locale.nl_langinfo(locale.T_FMT)
-        fmt = fmt.replace("%T", "%H:%M:%S").replace("%r", "%I:%M:%S %p")
-        fmt = re.sub(r"([^\w%]?)%(?:E|O)?S", "", fmt)
-        return value.strftime(re.sub(r"\s+", " ", fmt).strip()).strip()
+        time_pattern = locale.nl_langinfo(locale.T_FMT)
+        time_pattern = time_pattern.replace("%T", "%H:%M:%S").replace("%r", "%I:%M:%S %p")
+        time_pattern = re.sub(r"([^\w%]?)%(?:E|O)?S", "", time_pattern)
+        return value.strftime(re.sub(r"\s+", " ", time_pattern).strip()).strip()

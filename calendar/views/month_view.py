@@ -145,7 +145,7 @@ class MonthView(Gtk.Box):
         occupied = [[set() for _lane in range(self.max_lanes)] for _row in range(6)]
         used_lanes = [0] * 6
         hidden_by_date = {}
-        for event in sorted(events, key=lambda ev: (ev["date_start"], -((ev["date_end"] - ev["date_start"]).days))):
+        for event in sorted(events, key=lambda event: (event["date_start"], -((event["date_end"] - event["date_start"]).days))):
             segment_start = max(event["date_start"], grid_start)
             visible_end = min(event["date_end"], grid_end)
             while segment_start <= visible_end:
@@ -260,15 +260,15 @@ class _DayCell(Gtk.EventBox):
 
     def set_day(self, date, in_month):
         self._date = date
-        ctx = self.get_style_context()
-        for c in ("clockenstein-today", "clockenstein-other-month", "clockenstein-month-start"):
-            ctx.remove_class(c)
+        style_context = self.get_style_context()
+        for style_class in ("clockenstein-today", "clockenstein-other-month", "clockenstein-month-start"):
+            style_context.remove_class(style_class)
         if date == self.today:
-            ctx.add_class("clockenstein-today")
+            style_context.add_class("clockenstein-today")
         if not in_month:
-            ctx.add_class("clockenstein-other-month")
+            style_context.add_class("clockenstein-other-month")
         if date.day == 1:
-            ctx.add_class("clockenstein-month-start")
+            style_context.add_class("clockenstein-month-start")
 
         show_month = date.day == 1
         self.month_lbl.set_opacity(1 if show_month else 0)
@@ -282,10 +282,10 @@ class _DayCell(Gtk.EventBox):
         else:
             context.remove_class("clockenstein-selected-day")
 
-    def _on_click(self, _w, ev):
-        if ev.button == 1 and self._date and self.on_select:
+    def _on_click(self, _w, event):
+        if event.button == 1 and self._date and self.on_select:
             self.on_select(self._date)
-        if ev.type == Gdk.EventType.DOUBLE_BUTTON_PRESS and self._date:
+        if event.type == Gdk.EventType.DOUBLE_BUTTON_PRESS and self._date:
             self.on_day(self._date)
 
 class _SpanPill(Gtk.EventBox):

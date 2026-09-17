@@ -128,34 +128,34 @@ class DayView(Gtk.Box):
         locale_name = babel.core.default_locale(("LC_ALL", "LC_TIME", "LANG"))
         date_text = babel.dates.format_date(current_date, format="full", locale=locale_name)
         self.date_label.set_text(capitalize_first(date_text))
-        day_events = [e for e in events
-                      if e["date_start"] <= current_date <= e.get("date_end", e["date_start"])]
+        day_events = [clicked_event for clicked_event in events
+                      if clicked_event["date_start"] <= current_date <= clicked_event.get("date_end", clicked_event["date_start"])]
 
         for layer in (self.all_day_event_layer, self.event_layer):
             for child in layer.get_children():
                 layer.remove(child)
         self._positioned_events = []
-        for ev in day_events:
-            full_day_column = ev["all_day"] or ev["time_start"] is None
+        for event in day_events:
+            full_day_column = event["all_day"] or event["time_start"] is None
             if full_day_column:
                 start_minutes = DAY_START_MINUTE
                 end_minutes = DAY_END_MINUTE
             else:
-                start_minutes, end_minutes = _timed_segment_minutes(ev, current_date)
+                start_minutes, end_minutes = _timed_segment_minutes(event, current_date)
                 if end_minutes <= start_minutes:
                     continue
 
-            btn = _DayEventButton()
-            btn.get_style_context().add_class("clockenstein-week-event")
-            btn.get_style_context().add_class("clockenstein-day-event")
-            apply_tinted_event_color(btn, ev)
-            if _event_has_ended(ev):
-                btn.set_opacity(0.5)
-            btn.connect("clicked", lambda _, e=ev: self.on_event(e))
+            event_button = _DayEventButton()
+            event_button.get_style_context().add_class("clockenstein-week-event")
+            event_button.get_style_context().add_class("clockenstein-day-event")
+            apply_tinted_event_color(event_button, event)
+            if _event_has_ended(event):
+                event_button.set_opacity(0.5)
+            event_button.connect("clicked", lambda _, clicked_event=event: self.on_event(clicked_event))
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             content.set_valign(Gtk.Align.CENTER if full_day_column else Gtk.Align.START)
             title, when, location = _event_label_parts(
-                ev, start_minutes, end_minutes, full_day_column, self.time_format
+                event, start_minutes, end_minutes, full_day_column, self.time_format
             )
             if full_day_column:
                 when, location = "", ""
@@ -171,14 +171,14 @@ class DayView(Gtk.Box):
                 else:
                     text.set_text(value)
                 content.pack_start(text, False, False, 0)
-            btn.add(content)
+            event_button.add(content)
             top = ALL_DAY_EVENT_MARGIN if full_day_column else _minute_to_y(start_minutes)
             height = (ALL_DAY_HEIGHT - 2 * ALL_DAY_EVENT_MARGIN if full_day_column else
                       max(1, _minute_to_y(end_minutes) - _minute_to_y(start_minutes)))
             layer = self.all_day_event_layer if full_day_column else self.event_layer
-            layer.put(btn, 0, top)
+            layer.put(event_button, 0, top)
             self._positioned_events.append({
-                "widget": btn, "start": start_minutes, "end": end_minutes,
+                "widget": event_button, "start": start_minutes, "end": end_minutes,
                 "top": top, "height": height, "all_day": full_day_column, "layer": layer,
             })
 
