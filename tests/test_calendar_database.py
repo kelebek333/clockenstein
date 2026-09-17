@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "calendar"))
 
 from clockenstein.calendars import CalendarDatabase
 from backends.google import GoogleBackend
-from backends.caldav import CalDAVBackend, _event_ical
+from backends.caldav import CalDAVBackend, _get_event_ical
 from store import LocalStore
 
 
@@ -229,7 +229,7 @@ class RemoteSyncUseCases(unittest.TestCase):
 
     def test_caldav_raw_alarm_is_retained_but_not_used_and_failed_fetch_keeps_cache(self):
         backend = CalDAVBackend(self.path, UTC)
-        payload = _event_ical(event(), UTC, "event").replace(
+        payload = _get_event_ical(event(), UTC, "event").replace(
             "END:VEVENT", "BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:-PT10M\r\nEND:VALARM\r\nEND:VEVENT")
         remote = unittest.mock.Mock(url="https://example.test/work/event.ics", data=payload)
         calendar = unittest.mock.Mock(url="https://example.test/work/")
@@ -257,7 +257,7 @@ class RemoteSyncUseCases(unittest.TestCase):
         backend.database.connect_account("caldav", {"id": "a", "name": "A"}, [{"id": "c"}])
         for day in (1, 2):
             date = datetime.date(2026, 9, day)
-            payload = _event_ical({**event(), "date_start": date, "date_end": date}, UTC, "series")
+            payload = _get_event_ical({**event(), "date_start": date, "date_end": date}, UTC, "series")
             payload = payload.replace("END:VEVENT", f"RECURRENCE-ID;VALUE=DATE:2026090{day}\r\nEND:VEVENT")
             for parsed in backend._parse_events(payload, "https://example.test/series.ics"):
                 backend.database.save_event("caldav", "a", "c", parsed, UTC)

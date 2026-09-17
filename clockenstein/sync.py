@@ -23,18 +23,18 @@ class SyncDownload:
                               "response": response})
 
     def save(self):
-        self._write("latest.json", {**self.identity, "fetched_at": self._now(),
+        self._write("latest.json", {**self.identity, "fetched_at": self._get_timestamp(),
                                     "requests": self.requests})
 
     def finish(self, error=None):
-        self._write("status.json", {**self.identity, "attempted_at": self._now(),
+        self._write("status.json", {**self.identity, "attempted_at": self._get_timestamp(),
                                     "success": error is None, "error": str(error) if error else None})
 
     def _write(self, name, data):
         write_private_json(self.path / name, data)
 
     @staticmethod
-    def _now():
+    def _get_timestamp():
         return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 

@@ -78,11 +78,11 @@ class LocalStore:
 
     def get_events(self, start=None, end=None, include_hidden=False):
         return sorted(self.database.get_events("local", self.timezone, start, end, include_hidden),
-                      key=_event_sort_key)
+                      key=_get_event_sort_key)
 
     def create_event(self, data):
         calendar_id = data.get("calendar_id") or self.list_calendars()[0]["id"]
-        event = self._event_data(data)
+        event = self._get_event_data(data)
         event["uid"] = data.get("uid") or str(uuid.uuid4())
         self.database.save_event("local", "local", calendar_id, event, self.timezone)
         return self.database.get_events("local", self.timezone, include_hidden=True,
@@ -94,7 +94,7 @@ class LocalStore:
         if not self.database.get_events("local", self.timezone, include_hidden=True,
                                     calendar_id=source_id, uid=uid):
             return None
-        event = self._event_data(data)
+        event = self._get_event_data(data)
         event["uid"] = uid
         self.database.save_event("local", "local", calendar_id, event, self.timezone, source_id)
         return self.database.get_events("local", self.timezone, include_hidden=True,
@@ -111,7 +111,7 @@ class LocalStore:
         return events[0]["calendar_id"]
 
     @staticmethod
-    def _event_data(data):
+    def _get_event_data(data):
         start = data.get("date_start") or datetime.date.today()
         return {"summary": data.get("summary", ""), "location": data.get("location", ""),
                 "description": data.get("description", ""), "all_day": data.get("all_day", True),
@@ -140,7 +140,7 @@ class CalendarManager:
             self.local.get_events(start, end, include_hidden)
             + self.google.get_events(start, end, include_hidden)
             + self.caldav.get_events(start, end, include_hidden),
-            key=_event_sort_key,
+            key=_get_event_sort_key,
         )
 
     def create_calendar(self, name, color=DEFAULT_COLOR):
@@ -153,27 +153,27 @@ class CalendarManager:
         return self.local.update_calendar(calendar_id, name, color)
 
     def set_visible(self, provider, calendar_id, visible, account_id=None):
-        self._backend(provider).set_visible(calendar_id, visible, account_id)
+        self._get_backend(provider).set_visible(calendar_id, visible, account_id)
 
     def clear_calendar_events(self, provider, calendar_id, account_id):
-        self._backend(provider).clear_calendar_events(calendar_id, account_id)
+        self._get_backend(provider).clear_calendar_events(calendar_id, account_id)
 
     def set_reminders(self, provider, calendar_id, enabled, account_id=None):
-        self._backend(provider).set_reminders(calendar_id, enabled, account_id)
+        self._get_backend(provider).set_reminders(calendar_id, enabled, account_id)
 
-    def writable_calendars(self):
+    def get_writable_calendars(self):
         return [calendar for calendar in self.list_calendars() if calendar.get("writable") and calendar.get("available")]
 
     def create_event(self, data):
-        return self._backend(data.get("provider", "local")).create_event(data)
+        return self._get_backend(data.get("provider", "local")).create_event(data)
 
     def update_event(self, uid, data):
-        return self._backend(data.get("provider", "local")).update_event(uid, data)
+        return self._get_backend(data.get("provider", "local")).update_event(uid, data)
 
     def delete_event(self, uid, calendar_id=None, provider="local", account_id=None):
-        return self._backend(provider).delete_event(uid, calendar_id, account_id)
+        return self._get_backend(provider).delete_event(uid, calendar_id, account_id)
 
-    def _backend(self, provider):
+    def _get_backend(self, provider):
         return {"local": self.local, "google": self.google, "caldav": self.caldav}[provider]
 
     @property
@@ -187,7 +187,7 @@ class CalendarManager:
                 + self.caldav.refresh(start, end))
 
 
-def _event_sort_key(event):
+def _get_event_sort_key(event):
     return event["date_start"], event.get("time_start") or datetime.time.min
 
 

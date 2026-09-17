@@ -112,7 +112,7 @@ class MainWindow(Gtk.Window):
         self._service_running[name] = False
         self._update_range_infobar()
 
-    def _service_warning(self):
+    def _get_service_warning(self):
         daemon_running = self._service_running[BUS_NAME]
         agent_running = self._service_running[AGENT_BUS_NAME]
         if not daemon_running:
@@ -330,7 +330,7 @@ class MainWindow(Gtk.Window):
     def _populate_calendar_list(self, events):
         for child in self.visible_calendar_box.get_children():
             self.visible_calendar_box.remove(child)
-        for calendar_info in self._sorted_calendars():
+        for calendar_info in self._get_sorted_calendars():
             if calendar_info.get("visible", True):
                 label = self._calendar_label(calendar_info)
                 if not self._calendar_available(calendar_info):
@@ -339,7 +339,7 @@ class MainWindow(Gtk.Window):
         self.visible_calendar_box.show_all()
         self._populate_upcoming(events)
 
-        states = self.store.google.account_states() + self.store.caldav.account_states()
+        states = self.store.google.get_account_states() + self.store.caldav.get_account_states()
         offline = [s for s in states if not s.get("online")]
         if offline:
             names = ", ".join(s["name"] for s in offline)
@@ -350,8 +350,8 @@ class MainWindow(Gtk.Window):
             self._set_status("")
         self._update_range_infobar()
 
-    def _google_calendars_out_of_range(self):
-        start, end = self._date_range()
+    def _get_google_calendars_out_of_range(self):
+        start, end = self._get_date_range()
         today = datetime.date.today()
         ranges = {
             "normal": NORMAL_RANGE,
@@ -371,8 +371,8 @@ class MainWindow(Gtk.Window):
         return calendars
 
     def _update_range_infobar(self):
-        service_warning = self._service_warning()
-        calendars = self._google_calendars_out_of_range() if not service_warning else []
+        service_warning = self._get_service_warning()
+        calendars = self._get_google_calendars_out_of_range() if not service_warning else []
         if not service_warning and not calendars:
             self.range_infobar.hide()
             return
@@ -473,8 +473,8 @@ class MainWindow(Gtk.Window):
             if calendar_info["provider"] != "local" and key not in account_keys:
                 account_keys.append(key)
         states = {
-            **{("google", s["id"]): s for s in self.store.google.account_states()},
-            **{("caldav", s["id"]): s for s in self.store.caldav.account_states()},
+            **{("google", s["id"]): s for s in self.store.google.get_account_states()},
+            **{("caldav", s["id"]): s for s in self.store.caldav.get_account_states()},
         }
         for provider, account_id in account_keys:
             state = states.get((provider, account_id), {})
@@ -505,7 +505,7 @@ class MainWindow(Gtk.Window):
 
         for account_name, account_id, items, account_status, frequency in accounts:
             if account_id != "local":
-                items = sorted(items, key=self._google_calendar_sort_key)
+                items = sorted(items, key=self._get_google_calendar_sort_key)
 
             account_label = Gtk.Label(label=account_name, xalign=0)
             account_label.set_hexpand(True)
@@ -543,12 +543,12 @@ class MainWindow(Gtk.Window):
                     calendar_label = self._calendar_label(calendar_info)
                     calendar_label.set_margin_start(32)
                     status = Gtk.Label(
-                        label=(self._calendar_sync_status_label(calendar_info)
+                        label=(self._get_calendar_sync_status_label(calendar_info)
                                if calendar_info["provider"] != "local" else ""), xalign=0
                     )
                     status.set_ellipsize(Pango.EllipsizeMode.END)
                     status.set_max_width_chars(32)
-                    status.set_tooltip_text(self._calendar_sync_status_label(calendar_info))
+                    status.set_tooltip_text(self._get_calendar_sync_status_label(calendar_info))
                     status.get_style_context().add_class("dim-label")
                     visibility = Gtk.Switch()
                     visibility.set_active(calendar_info.get("visible", True))
@@ -580,7 +580,7 @@ class MainWindow(Gtk.Window):
                     refresh.connect("clicked", self._refresh_calendar, calendar_info)
                     row_widgets = [calendar_label, status, reminders, visibility, refresh]
                     sync_range = Gtk.Label(
-                        label=(self._google_sync_range_label(calendar_info)
+                        label=(self._get_google_sync_range_label(calendar_info)
                                if calendar_info["provider"] == "google" else ""), xalign=0
                     )
                     sync_range.get_style_context().add_class("dim-label")
@@ -629,27 +629,27 @@ class MainWindow(Gtk.Window):
             button.set_tooltip_text(_("Refresh this calendar"))
         return GLib.SOURCE_REMOVE
 
-    def _sorted_calendars(self):
+    def _get_sorted_calendars(self):
         calendars = self.store.list_calendars()
         local = [calendar_info for calendar_info in calendars if calendar_info["provider"] == "local"]
         google = [calendar_info for calendar_info in calendars if calendar_info["provider"] == "google"]
         account_order = {state["id"]: index for index, state in enumerate(
-                         self.store.google.account_states())}
+                         self.store.google.get_account_states())}
         google.sort(key=lambda calendar_info: (
             account_order.get(calendar_info.get("account_id"), len(account_order)),
-            *self._google_calendar_sort_key(calendar_info),
+            *self._get_google_calendar_sort_key(calendar_info),
         ))
         caldav = [calendar_info for calendar_info in calendars if calendar_info["provider"] == "caldav"]
         return local + google + caldav
 
     @staticmethod
-    def _google_calendar_sort_key(calendar_info):
+    def _get_google_calendar_sort_key(calendar_info):
         return (not calendar_info.get("writable", False),
                 not calendar_info.get("primary", calendar_info.get("id") == calendar_info.get("account_id")),
                 calendar_info["name"].casefold())
 
     @staticmethod
-    def _google_sync_range_label(calendar_info):
+    def _get_google_sync_range_label(calendar_info):
         return {
             "normal": _("2 years ahead"),
             "limited": _("1 year ahead"),
@@ -658,7 +658,7 @@ class MainWindow(Gtk.Window):
         }.get(calendar_info.get("sync_range", "normal"), _("2 years ahead"))
 
     @staticmethod
-    def _calendar_sync_status_label(calendar_info):
+    def _get_calendar_sync_status_label(calendar_info):
         error = calendar_info.get("sync_error")
         if error:
             return _("Error: %s") % error
@@ -892,7 +892,7 @@ class MainWindow(Gtk.Window):
         box.show_all()
         if dialog.run() == Gtk.ResponseType.OK and name.get_text().strip():
             self.store.create_calendar(name.get_text().strip(), color.get_rgba().to_string())
-            self._populate_calendar_list(self._available_events())
+            self._populate_calendar_list(self._get_available_events())
             notify_changed()
         dialog.destroy()
 
@@ -1040,7 +1040,7 @@ class MainWindow(Gtk.Window):
             month, year = d.month + direction, d.year
             if month < 1: month, year = 12, year - 1
             if month > 12: month, year = 1, year + 1
-            self.current_date = d.replace(year=year, month=month, day=min(d.day, _month_days(year, month)))
+            self.current_date = d.replace(year=year, month=month, day=min(d.day, _get_month_days(year, month)))
         elif self._active_view == "Week":
             self.current_date += datetime.timedelta(weeks=direction)
         else:
@@ -1081,7 +1081,7 @@ class MainWindow(Gtk.Window):
         if not steps:
             return
         self._month_scroll_delta -= steps
-        start, _end = self._month_date_range()
+        start, _end = self._get_month_date_range()
         start += datetime.timedelta(weeks=steps)
         self._month_selected_date += datetime.timedelta(weeks=steps)
         self.current_date = self._month_selected_date
@@ -1091,7 +1091,7 @@ class MainWindow(Gtk.Window):
         self._refresh(refresh_caldav=self._caldav_navigation_needs_refresh())
 
     def _select_month_date(self, date):
-        start, _end = self._month_date_range()
+        start, _end = self._get_month_date_range()
         self.current_date = date
         self._month_selected_date = date
         self._week_selected_date = date
@@ -1145,7 +1145,7 @@ class MainWindow(Gtk.Window):
         dialog.destroy()
 
     def _get_editable_calendars(self, event=None):
-        calendars = [calendar_info for calendar_info in self.store.writable_calendars()
+        calendars = [calendar_info for calendar_info in self.store.get_writable_calendars()
                      if calendar_info.get("visible", True)]
         if self._refreshing:
             calendars = [calendar_info for calendar_info in calendars if calendar_info["provider"] == "local"]
@@ -1185,16 +1185,16 @@ class MainWindow(Gtk.Window):
             return False
         return True
 
-    def _date_range(self):
+    def _get_date_range(self):
         d = self.current_date
         if self._active_view == "Month":
-            return self._month_date_range()
+            return self._get_month_date_range()
         if self._active_view == "Week":
             start = start_of_week(d, self.first_weekday)
             return start, start + datetime.timedelta(days=6)
         return d, d
 
-    def _month_date_range(self):
+    def _get_month_date_range(self):
         first = datetime.date(self.current_date.year, self.current_date.month, 1)
         start = (start_of_week(first, self.first_weekday) +
                  datetime.timedelta(weeks=self._month_week_offset))
@@ -1208,7 +1208,7 @@ class MainWindow(Gtk.Window):
     def _caldav_navigation_needs_refresh(self):
         if not self.store.caldav.has_accounts:
             return False
-        start, end = self._date_range()
+        start, end = self._get_date_range()
         today = datetime.date.today()
         synced_start = today - datetime.timedelta(days=NORMAL_RANGE[0])
         synced_end = today + datetime.timedelta(days=NORMAL_RANGE[1])
@@ -1219,7 +1219,7 @@ class MainWindow(Gtk.Window):
         if (refresh_remote or refresh_caldav) and not self._refreshing:
             self._set_refreshing(True)
             self._set_status(_("Connecting to online calendars…"))
-            start, end = self._date_range()
+            start, end = self._get_date_range()
             self._refresh_worker(start, end, refresh_remote)
 
     @run_async
@@ -1291,13 +1291,13 @@ class MainWindow(Gtk.Window):
         if calendar.get("provider") == "local":
             return True
         provider = calendar.get("provider")
-        states = (self.store.google.account_states() if provider == "google" else
-                  self.store.caldav.account_states())
+        states = (self.store.google.get_account_states() if provider == "google" else
+                  self.store.caldav.get_account_states())
         return (not self._refreshing and
                 any(state["id"] == calendar.get("account_id") and state.get("online")
                     for state in states))
 
-    def _available_events(self):
+    def _get_available_events(self):
         events = self.store.get_events()
         if self._refreshing:
             return [event if event.get("provider") == "local" else
@@ -1306,8 +1306,8 @@ class MainWindow(Gtk.Window):
 
     def _update_views(self):
         self.new_button.set_sensitive(bool(self._get_editable_calendars()))
-        start, end = self._date_range()
-        all_events = self._available_events()
+        start, end = self._get_date_range()
+        all_events = self._get_available_events()
         events = [event for event in all_events
                   if event["date_end"] >= start and event["date_start"] <= end]
         self.month_view.update(self.current_date, events, self._month_week_offset,
@@ -1318,5 +1318,5 @@ class MainWindow(Gtk.Window):
         self._populate_calendar_list(all_events)
 
 
-def _month_days(year, month):
+def _get_month_days(year, month):
     return calendar.monthrange(year, month)[1]

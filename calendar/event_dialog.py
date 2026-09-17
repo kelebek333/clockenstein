@@ -308,9 +308,9 @@ class EventDialog(Gtk.Dialog):
                 self.end_date_picker.set_date(start_date)
                 self._adjusting_end = False
             return
-        start = datetime.datetime.combine(start_date, self._picker_time(
+        start = datetime.datetime.combine(start_date, self._get_picker_time(
             self.start_hour, self.start_minute, self.start_period))
-        end = datetime.datetime.combine(end_date, self._picker_time(
+        end = datetime.datetime.combine(end_date, self._get_picker_time(
             self.end_hour, self.end_minute, self.end_period))
         if end <= start:
             self._set_end_datetime(start + datetime.timedelta(hours=1))
@@ -330,7 +330,7 @@ class EventDialog(Gtk.Dialog):
         minute.set_value(value.minute)
 
     @staticmethod
-    def _picker_time(hour, minute, period):
+    def _get_picker_time(hour, minute, period):
         hour_value = hour.get_value_as_int()
         if period:
             hour_value %= 12
@@ -359,10 +359,10 @@ class EventDialog(Gtk.Dialog):
         time_start = time_end = None
 
         if not all_day:
-            time_start = self._picker_time(
+            time_start = self._get_picker_time(
                 self.start_hour, self.start_minute, self.start_period
             )
-            time_end = self._picker_time(self.end_hour, self.end_minute, self.end_period)
+            time_end = self._get_picker_time(self.end_hour, self.end_minute, self.end_period)
 
         buf = self.desc_view.get_buffer()
         data = {

@@ -201,7 +201,7 @@ class NotificationAgent:
         accent = Gtk.DrawingArea()
         accent.set_size_request(-1, 2)
         accent.set_margin_top(4)
-        accent.connect("draw", _draw_calendar_accent, _theme_accent_color(accent))
+        accent.connect("draw", _draw_calendar_accent, _get_theme_accent_color(accent))
         content.pack_start(accent, False, False, 0)
 
         buttons = self._new_action_box()
@@ -245,7 +245,7 @@ class NotificationAgent:
                 _calendar_detail_row(calendar_name, calendar_color), False, False, 0
             )
         time_row, time_label = _detail_row(
-            "xsi-time-symbolic", _relative_start_label(start_timestamp),
+            "xsi-time-symbolic", _get_relative_start_label(start_timestamp),
             prominent=True
         )
         content.pack_start(time_row, False, False, 0)
@@ -332,7 +332,7 @@ class NotificationAgent:
     def _update_relative_time(self, window):
         if window not in self.windows:
             return GLib.SOURCE_REMOVE
-        relative = _relative_start_label(window.start_timestamp)
+        relative = _get_relative_start_label(window.start_timestamp)
         window.details_label.set_text(relative)
         started = window.start_timestamp <= datetime.datetime.now().timestamp()
         context = window.details_label.get_style_context()
@@ -531,7 +531,7 @@ def _draw_calendar_accent(widget, cr, rgba):
     return False
 
 
-def _theme_accent_color(widget):
+def _get_theme_accent_color(widget):
     context = widget.get_style_context()
     found, color = context.lookup_color("theme_selected_bg_color")
     if found:
@@ -539,7 +539,7 @@ def _theme_accent_color(widget):
     return context.get_background_color(Gtk.StateFlags.SELECTED)
 
 
-def _relative_start_label(start_timestamp, now=None):
+def _get_relative_start_label(start_timestamp, now=None):
     now = now or datetime.datetime.now().astimezone()
     seconds = start_timestamp - now.timestamp()
     if seconds > 0:

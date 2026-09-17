@@ -106,10 +106,10 @@ class CalendarDatabase:
             if account_id is not None:
                 query += " AND c.account_id=?"
                 parameters.append(account_id)
-            return [self._calendar(row) for row in connection.execute(query + " ORDER BY c.rowid", parameters)]
+            return [self._get_calendar_from_row(row) for row in connection.execute(query + " ORDER BY c.rowid", parameters)]
 
     @staticmethod
-    def _calendar(row):
+    def _get_calendar_from_row(row):
         calendar = dict(row)
         calendar["primary"] = bool(calendar.pop("is_primary"))
         for field in ("visible", "reminders", "writable"):
@@ -171,14 +171,14 @@ class CalendarDatabase:
                     parameters.append(value)
             result = []
             for row in connection.execute(query, parameters):
-                event = self._event(row, timezone)
+                event = self._get_event_from_row(row, timezone)
                 if start and event["date_end"] < start or end and event["date_start"] > end:
                     continue
                 result.append(event)
             return result
 
     @staticmethod
-    def _event(row, timezone):
+    def _get_event_from_row(row, timezone):
         event = dict(row)
         event["all_day"] = bool(event["all_day"])
         for field in ("start", "end"):

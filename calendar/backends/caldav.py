@@ -38,7 +38,7 @@ class CalDAVBackend(RemoteBackend):
             except Exception as exc:
                 self._errors[account["id"]] = str(exc)
 
-    def account_states(self):
+    def get_account_states(self):
         return [{"id": a["id"], "name": a.get("name", a["username"]),
                  "online": self._account_available(a["id"]),
                  "error": self._errors.get(a["id"], "")} for a in self.accounts]
@@ -58,7 +58,7 @@ class CalDAVBackend(RemoteBackend):
         account = {"id": account_id, "url": url, "username": username,
                    "name": f"{username} — {urlparse(url).hostname or url}"}
         self._store_password(account_id, username, password)
-        self.database.connect_account(self.provider, account, self._calendar_metadata(calendars, account_id))
+        self.database.connect_account(self.provider, account, self._get_calendar_metadata(calendars, account_id))
         self._configured_accounts.add(account_id)
         self._clients[account_id] = client
         self._calendars[account_id] = {str(remote_calendar.url): remote_calendar for remote_calendar in calendars}
@@ -92,7 +92,7 @@ class CalDAVBackend(RemoteBackend):
                 client, remote = self._open(account["url"], account["username"], password)
                 self._clients[account_id] = client
                 self._calendars[account_id] = {str(remote_calendar.url): remote_calendar for remote_calendar in remote}
-                self.database.update_calendar_list(self.provider, account_id, self._calendar_metadata(remote, account_id))
+                self.database.update_calendar_list(self.provider, account_id, self._get_calendar_metadata(remote, account_id))
             except Exception as exc:
                 self._clients.pop(account_id, None)
                 self._calendars.pop(account_id, None)
@@ -145,7 +145,7 @@ class CalDAVBackend(RemoteBackend):
 
     def create_event(self, data):
         calendar = self._require_calendar(data["account_id"], data["calendar_id"])
-        remote = calendar.save_event(_event_ical(data, self.timezone))
+        remote = calendar.save_event(_get_event_ical(data, self.timezone))
         self._cache_remote(data["account_id"], data["calendar_id"], remote)
         return data
 
@@ -157,7 +157,7 @@ class CalDAVBackend(RemoteBackend):
             raise CalDAVUnavailable(_("The event has no CalDAV resource URL"))
         parent = self._require_calendar(data["account_id"], data["calendar_id"])
         if source_id != data["calendar_id"]:
-            remote = parent.save_event(_event_ical(data, self.timezone, uid))
+            remote = parent.save_event(_get_event_ical(data, self.timezone, uid))
             source = self._require_calendar(data["account_id"], source_id)
             caldav.Event(client=self._clients[data["account_id"]], parent=source,
                          url=cached["_caldav_url"]).delete()
@@ -165,7 +165,7 @@ class CalDAVBackend(RemoteBackend):
                                source_id)
             return data
         remote = caldav.Event(client=self._clients[data["account_id"]], parent=parent,
-                             url=cached["_caldav_url"], data=_event_ical(data, self.timezone, uid))
+                             url=cached["_caldav_url"], data=_get_event_ical(data, self.timezone, uid))
         remote.save()
         self._cache_remote(data["account_id"], data["calendar_id"], remote)
         return data
@@ -234,7 +234,7 @@ class CalDAVBackend(RemoteBackend):
         return client, client.principal().calendars()
 
     @classmethod
-    def _schema(cls):
+    def _get_password_schema(cls):
         import gi
         gi.require_version("Secret", "1")
         from gi.repository import Secret
@@ -244,7 +244,7 @@ class CalDAVBackend(RemoteBackend):
     @classmethod
     def _store_password(cls, account_id, username, password):
         from gi.repository import Secret
-        ok = Secret.password_store_sync(cls._schema(), {"account": account_id},
+        ok = Secret.password_store_sync(cls._get_password_schema(), {"account": account_id},
                                         Secret.COLLECTION_DEFAULT,
                                         _("Calendar CalDAV password for %s") % username, password, None)
         if not ok:
@@ -253,14 +253,14 @@ class CalDAVBackend(RemoteBackend):
     @classmethod
     def _lookup_password(cls, account_id):
         from gi.repository import Secret
-        return Secret.password_lookup_sync(cls._schema(), {"account": account_id}, None)
+        return Secret.password_lookup_sync(cls._get_password_schema(), {"account": account_id}, None)
 
     @classmethod
     def _clear_password(cls, account_id):
         from gi.repository import Secret
-        Secret.password_clear_sync(cls._schema(), {"account": account_id}, None)
+        Secret.password_clear_sync(cls._get_password_schema(), {"account": account_id}, None)
 
-    def _calendar_metadata(self, remote, account_id):
+    def _get_calendar_metadata(self, remote, account_id):
         previous = {calendar["id"]: calendar for calendar in
                     self.database.get_calendars(self.provider, account_id)}
         result = []
@@ -292,7 +292,7 @@ class CalDAVBackend(RemoteBackend):
         return colors[int(hashlib.sha256(value.encode()).hexdigest()[:4], 16) % len(colors)]
 
 
-def _event_ical(data, timezone: datetime.tzinfo, uid=None):
+def _get_event_ical(data, timezone: datetime.tzinfo, uid=None):
     calendar = Calendar()
     calendar.add("prodid", "-//Clockenstein//EN")
     calendar.add("version", "2.0")

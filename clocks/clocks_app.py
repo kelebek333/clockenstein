@@ -23,7 +23,7 @@ from clockenstein.formatting import format_time
 
 _ = l10n("clockenstein")
 
-def _locale_weekday_initials():
+def _get_locale_weekday_initials():
     monday = datetime.date(2024, 1, 1)
     return tuple(
         (monday + datetime.timedelta(days=offset)).strftime("%A")[:1].upper()
@@ -31,7 +31,7 @@ def _locale_weekday_initials():
     )
 
 
-def _locale_weekday_abbreviations():
+def _get_locale_weekday_abbreviations():
     monday = datetime.date(2024, 1, 1)
     return tuple(
         (monday + datetime.timedelta(days=offset)).strftime("%a")
@@ -39,7 +39,7 @@ def _locale_weekday_abbreviations():
     )
 
 
-def _next_alarm_time(alarm, now, include_disabled=False):
+def _get_next_alarm_time(alarm, now, include_disabled=False):
     if not include_disabled and not alarm.get("enabled", True):
         return None
     time = datetime.time.fromisoformat(alarm["time"])
@@ -72,10 +72,10 @@ def _is_past_one_off(alarm, now=None):
     return trigger <= now
 
 
-def _next_alarm_label(alarms):
+def _get_next_alarm_label(alarms):
     now = datetime.datetime.now()
     triggers = [trigger for alarm in alarms
-                if (trigger := _next_alarm_time(alarm, now)) is not None]
+                if (trigger := _get_next_alarm_time(alarm, now)) is not None]
     if not triggers:
         return None
     next_trigger = min(triggers)
@@ -248,7 +248,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
             self.list_box.add(label)
             self.show_all()
             return
-        next_alarm = _next_alarm_label(alarms)
+        next_alarm = _get_next_alarm_label(alarms)
         if next_alarm:
             self.next_alarm_label.set_text(next_alarm)
             self.next_alarm_label.show()
@@ -262,7 +262,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
                     datetime.date.fromisoformat(alarm["date"]),
                     datetime.time.fromisoformat(alarm["time"]),
                 )
-            return 1, _next_alarm_time(alarm, now, include_disabled=True)
+            return 1, _get_next_alarm_time(alarm, now, include_disabled=True)
 
         for alarm in sorted(alarms, key=next_time_key):
             self.list_box.add(self._alarm_row(alarm))
@@ -287,7 +287,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         )
         time.get_style_context().add_class("clockenstein-alarm-time")
         time_column.pack_start(time, False, False, 0)
-        time_column.pack_start(_alarm_time_info(alarm), False, False, 0)
+        time_column.pack_start(_get_alarm_time_info(alarm), False, False, 0)
         content.pack_start(time_column, False, False, 0)
         details = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         details.set_valign(Gtk.Align.CENTER)
@@ -438,7 +438,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
         days.set_homogeneous(True)
         repeat = set(alarm.get("repeat", []) if alarm else [])
         buttons = []
-        for index, day in enumerate(_locale_weekday_initials()):
+        for index, day in enumerate(_get_locale_weekday_initials()):
             button = Gtk.ToggleButton(label=day)
             button.set_relief(Gtk.ReliefStyle.NONE)
             button.set_tooltip_text(
@@ -553,7 +553,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
                 text = _("Every day")
             elif selected_days:
                 text = _("Every %s") % ", ".join(
-                    _locale_weekday_abbreviations()[index] for index in selected_days
+                    _get_locale_weekday_abbreviations()[index] for index in selected_days
                 )
             else:
                 date = selected_date
@@ -563,7 +563,7 @@ class ClocksWindow(Gtk.ApplicationWindow):
                     date = now.date() + datetime.timedelta(
                         days=int(datetime.datetime.combine(now.date(), time) <= now)
                     )
-                text = _alarm_date_label(date)
+                text = _get_alarm_date_label(date)
             time_info.set_text(text)
 
         def day_toggled(_button):
@@ -651,14 +651,14 @@ def _show_alarm_error(parent, message, error):
     dialog.destroy()
 
 
-def _alarm_time_info(alarm):
+def _get_alarm_time_info(alarm):
     repeat = set(alarm.get("repeat", []))
     if repeat == set(range(7)):
         return _alarm_info_label(_("Every day"))
     if repeat:
         days = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         days.get_style_context().add_class("clockenstein-alarm-days")
-        for index, initial in enumerate(_locale_weekday_initials()):
+        for index, initial in enumerate(_get_locale_weekday_initials()):
             day = Gtk.Label(xalign=0.5)
             if index in repeat:
                 day.set_text(f"•\n{initial}")
@@ -676,10 +676,10 @@ def _alarm_time_info(alarm):
         date = now.date() + datetime.timedelta(
             days=int(datetime.datetime.combine(now.date(), time) <= now)
         )
-    return _alarm_info_label(_alarm_date_label(date))
+    return _alarm_info_label(_get_alarm_date_label(date))
 
 
-def _alarm_date_label(date):
+def _get_alarm_date_label(date):
     if date == datetime.date.today():
         return _("Today")
     if date == datetime.date.today() + datetime.timedelta(days=1):

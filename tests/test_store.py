@@ -378,7 +378,7 @@ class GoogleMappingTests(unittest.TestCase):
 
     def test_google_primary_calendar_metadata_is_preserved(self):
         """Google calendar-list merging retains the primary-calendar marker."""
-        calendars = GoogleBackend._calendar_metadata([{
+        calendars = GoogleBackend._get_calendar_metadata([{
             "id": "me@example.com", "summary": "me@example.com", "primary": True,
             "accessRole": "owner", "backgroundColor": "#123456",
         }])
@@ -425,7 +425,7 @@ class GoogleMappingTests(unittest.TestCase):
             expiry = datetime.datetime(2026, 8, 22, tzinfo=datetime.timezone.utc)
 
         import json
-        saved = json.loads(GoogleBackend._credentials_json(OldCredentials()))
+        saved = json.loads(GoogleBackend._get_credentials_json(OldCredentials()))
         self.assertEqual(saved["refresh_token"], "refresh")
         self.assertEqual(saved["scopes"], ["calendar"])
         self.assertEqual(saved["expiry"], "2026-08-22T00:00:00Z")
@@ -434,10 +434,10 @@ class GoogleMappingTests(unittest.TestCase):
         """The bundled OAuth file may specify scopes, otherwise defaults are used."""
         with patch.object(GoogleBackend, "_read_oauth_client_config",
                           return_value={"clockenstein_scopes": ["custom-scope"]}):
-            self.assertEqual(GoogleBackend._scopes_for_credentials(), ["custom-scope"])
+            self.assertEqual(GoogleBackend._get_scopes_for_credentials(), ["custom-scope"])
         with patch.object(GoogleBackend, "_read_oauth_client_config",
                           return_value={"installed": {}}):
-            self.assertEqual(GoogleBackend._scopes_for_credentials(), SCOPES)
+            self.assertEqual(GoogleBackend._get_scopes_for_credentials(), SCOPES)
 
     def test_all_day_end_is_exclusive(self):
         """A one-day all-day event uses Google's exclusive next-day end date."""

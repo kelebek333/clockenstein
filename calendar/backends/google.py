@@ -51,7 +51,7 @@ class GoogleBackend(RemoteBackend):
         self.last_refresh_stats = {}
         self._load_services()
 
-    def account_states(self):
+    def get_account_states(self):
         return [{"id": a["id"], "name": a.get("name", a["id"]),
                  "online": self._account_available(a["id"]),
                  "error": self._errors.get(a["id"], "")} for a in self.accounts]
@@ -61,7 +61,7 @@ class GoogleBackend(RemoteBackend):
                 or account_id in self._credentials and account_id not in self._errors)
 
     def connect(self, progress=None) -> str:
-        scopes = self._scopes_for_credentials()
+        scopes = self._get_scopes_for_credentials()
         if progress:
             progress(_("Waiting for Google authorization…"))
         flow = InstalledAppFlow.from_client_config(
@@ -84,7 +84,7 @@ class GoogleBackend(RemoteBackend):
         account = {"id": account_id, "name": account_id, "token": token_name,
                    "scopes": scopes, "auth_provider": "clockenstein"}
         self.database.connect_account(self.provider, account,
-                                      self._calendar_metadata(calendars))
+                                      self._get_calendar_metadata(calendars))
         self._services[account_id] = service
         self._credentials[account_id] = credentials
         self._errors.pop(account_id, None)
@@ -101,7 +101,7 @@ class GoogleBackend(RemoteBackend):
 
     def list_goa_accounts(self):
         result = []
-        for goa_object in self._goa_accounts():
+        for goa_object in self._get_goa_accounts():
             account = goa_object.get_account()
             result.append({
                 "id": account.props.id,
@@ -126,7 +126,7 @@ class GoogleBackend(RemoteBackend):
                    "name": goa_account.props.presentation_identity or primary["id"],
                    "auth_provider": "goa", "goa_account_id": goa_account_id}
         self.database.connect_account(self.provider, account,
-                                      self._calendar_metadata(calendars))
+                                      self._get_calendar_metadata(calendars))
         self._services[account_id] = service
         self._errors.pop(account_id, None)
         return account_id
@@ -298,7 +298,7 @@ class GoogleBackend(RemoteBackend):
     def _save_credentials(self, name, credentials):
         path = self.data_dir / name
         # Token files are separate from calendar records and diagnostic downloads.
-        write_private_json(path, json.loads(self._credentials_json(credentials)))
+        write_private_json(path, json.loads(self._get_credentials_json(credentials)))
 
     def _load_services(self):
         for account in self.accounts:
@@ -319,7 +319,7 @@ class GoogleBackend(RemoteBackend):
                 self._errors[account["id"]] = str(exc)
 
     @staticmethod
-    def _goa_accounts():
+    def _get_goa_accounts():
         try:
             import gi
             gi.require_version("Goa", "1.0")
@@ -341,7 +341,7 @@ class GoogleBackend(RemoteBackend):
 
     @classmethod
     def _find_goa_account(cls, goa_account_id):
-        for goa_object in cls._goa_accounts():
+        for goa_object in cls._get_goa_accounts():
             if goa_object.get_account().props.id == goa_account_id:
                 return goa_object
         raise GoogleUnavailable(_("The selected Online Account is unavailable"))
@@ -416,7 +416,7 @@ class GoogleBackend(RemoteBackend):
                 return items, False
 
     @staticmethod
-    def _calendar_metadata(remote):
+    def _get_calendar_metadata(remote):
         return [{"id": calendar["id"], "name": calendar.get("summary", calendar["id"]),
                  "color": calendar.get("backgroundColor", "#4285f4"),
                  "writable": calendar.get("accessRole") in ("writer", "owner"),
@@ -424,7 +424,7 @@ class GoogleBackend(RemoteBackend):
                 for calendar in remote]
 
     @staticmethod
-    def _scopes_for_credentials():
+    def _get_scopes_for_credentials():
         """Read optional OAuth scopes declared by the bundled client configuration."""
         try:
             config = GoogleBackend._read_oauth_client_config()
@@ -434,7 +434,7 @@ class GoogleBackend(RemoteBackend):
         return scopes if isinstance(scopes, list) and all(isinstance(s, str) for s in scopes) else SCOPES
 
     @staticmethod
-    def _credentials_json(credentials):
+    def _get_credentials_json(credentials):
         """Serialize credentials on both current and older distro google-auth."""
         if hasattr(credentials, "to_json"):
             return credentials.to_json()

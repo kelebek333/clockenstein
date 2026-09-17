@@ -155,7 +155,7 @@ class ClockensteinDaemon:
                             method, parameters, invocation):
         if method == "GetEvents":
             since, until = parameters.unpack()
-            events = self._events_for_range(since, until)
+            events = self._get_events_for_range(since, until)
             self.logger.log(f"GetEvents({since}, {until}) -> {len(events)} event(s)")
             invocation.return_value(GLib.Variant("(a(sssbxxx))", (events,)))
         elif method == "NotifyChanged":
@@ -210,16 +210,16 @@ class ClockensteinDaemon:
             self._emit_alarms_changed()
             invocation.return_value(None)
 
-    def _events_for_range(self, since, until):
+    def _get_events_for_range(self, since, until):
         start = datetime.datetime.fromtimestamp(since, self.timezone).date()
         end = datetime.datetime.fromtimestamp(until, self.timezone).date()
         store = CalendarManager(self.timezone)
-        return [self._event_tuple(event) for event in store.get_events(start, end)]
+        return [self._get_event_tuple(event) for event in store.get_events(start, end)]
 
     def _reload_alarms(self):
         self.alarm_records = self.alarms.list()
 
-    def _event_tuple(self, event):
+    def _get_event_tuple(self, event):
         all_day = bool(event.get("all_day"))
         start_time = event.get("time_start") or datetime.time.min
         start = datetime.datetime.combine(event["date_start"], start_time, self.timezone)
@@ -254,7 +254,7 @@ class ClockensteinDaemon:
             minutes = self.settings.get_uint(REMINDER_MINUTES_KEY)
             events = [event for event in self.reminder_events
                       if event.get("reminders", True)]
-            for event in _due_notifications(events, since, now, minutes, self.timezone):
+            for event in _get_due_notifications(events, since, now, minutes, self.timezone):
                 self._emit_reminder(event)
             for alarm, trigger in due_alarms(self.alarm_records, since, now, self.timezone):
                 if self.alarms.mark_fired(alarm) is None:
@@ -284,7 +284,7 @@ class ClockensteinDaemon:
              event.get("description", ""),
              event.get("calendar_name", ""),
              event.get("calendar_color", DEFAULT_COLOR),
-             int(_event_start(event, self.timezone).timestamp()), bool(event.get("all_day"))),
+             int(_get_event_start(event, self.timezone).timestamp()), bool(event.get("all_day"))),
         )
         self.logger.log(f"Emitting Reminder for {uid}")
         self.connection.emit_signal(
@@ -395,23 +395,23 @@ class ClockensteinDaemon:
         if self.connection:
             self.connection.emit_signal(None, BUS_PATH, BUS_INTERFACE, "AlarmsChanged", None)
 
-def _event_start(event, timezone):
+def _get_event_start(event, timezone):
     return datetime.datetime.combine(
         event["date_start"], event.get("time_start") or datetime.time.min, timezone
     )
 
 
-def _due_notifications(events, since, until, minutes, timezone):
+def _get_due_notifications(events, since, until, minutes, timezone):
     """Return events whose universal notification became due in the interval."""
     if until < since:
         return []
     due = []
     for event in events:
-        start = _event_start(event, timezone)
+        start = _get_event_start(event, timezone)
         trigger = start - datetime.timedelta(minutes=minutes)
         if since < trigger <= until:
             due.append(event)
-    return sorted(due, key=lambda event: _event_start(event, timezone))
+    return sorted(due, key=lambda event: _get_event_start(event, timezone))
 
 
 if __name__ == "__main__":

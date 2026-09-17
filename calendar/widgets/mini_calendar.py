@@ -117,7 +117,7 @@ class MiniCalendar(Gtk.Box):
         if self._rendered_today != datetime.date.today():
             self._render()
             return
-        colors = self._event_colors()
+        colors = self._get_event_colors()
         for date, dots in self._day_dots.items():
             day_colors = colors.get(date, ())
             if dots.colors != day_colors:
@@ -203,7 +203,7 @@ class MiniCalendar(Gtk.Box):
         self._day_dots = {}
         first = datetime.date(self.date.year, self.date.month, 1)
         grid_start = start_of_week(first, self.first_weekday)
-        colors = self._event_colors()
+        colors = self._get_event_colors()
         selected_week = start_of_week(self.date, self.first_weekday)
         for week_index in range(6):
             week_start = grid_start + datetime.timedelta(weeks=week_index)
@@ -253,7 +253,7 @@ class MiniCalendar(Gtk.Box):
             self.weeks_box.attach(separator, 1, 0, 1, 6)
         self.weeks_box.show_all()
 
-    def _event_colors(self):
+    def _get_event_colors(self):
         result = {}
         month_start = datetime.date(self.date.year, self.date.month, 1)
         for event in self.events:

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "calendar"))
 from unittest.mock import patch
 from icalendar import Event
 
-from backends.caldav import CalDAVBackend, CalDAVUnavailable, _event_ical
+from backends.caldav import CalDAVBackend, CalDAVUnavailable, _get_event_ical
 from store import _component_to_dict
 
 
@@ -29,7 +29,7 @@ class CalDAVBackendTests(unittest.TestCase):
             backend = CalDAVBackend(Path(directory), UTC)
             start, end = datetime.date(2026, 9, 1), datetime.date(2026, 9, 30)
             raw = {"calendar_id": "hidden", "url": "https://example.test/event.ics",
-                   "ical": _event_ical({"date_start": start, "date_end": start,
+                   "ical": _get_event_ical({"date_start": start, "date_end": start,
                                         "all_day": True}, UTC, "event")}
             backend.database.connect_account("caldav", {"id": "account", "name": "Account",
                 "username": "me", "url": "https://example.test/"}, [{"id": "hidden"}])
@@ -77,7 +77,7 @@ class CalDAVBackendTests(unittest.TestCase):
                                    "visible": True, "writable": True}],
                     "events": [{"calendar_id": "https://dav.example.test/work/",
                                 "url": "https://dav.example.test/work/one.ics",
-                                "ical": _event_ical({"summary": "Meeting", "all_day": False,
+                                "ical": _get_event_ical({"summary": "Meeting", "all_day": False,
                                                      "date_start": datetime.date(2026, 8, 22),
                                                      "date_end": datetime.date(2026, 8, 22),
                                                      "time_start": datetime.time(9),
@@ -95,7 +95,7 @@ class CalDAVBackendTests(unittest.TestCase):
 
     def test_caldav_event_does_not_create_an_alarm(self):
         """Clockenstein's universal notification is not stored in CalDAV."""
-        payload = _event_ical({"summary": "Alert", "all_day": False,
+        payload = _get_event_ical({"summary": "Alert", "all_day": False,
                                "date_start": datetime.date.today() + datetime.timedelta(days=2),
                                "date_end": datetime.date.today() + datetime.timedelta(days=2),
                                "time_start": datetime.time(9), "time_end": datetime.time(10)}, UTC)
@@ -103,7 +103,7 @@ class CalDAVBackendTests(unittest.TestCase):
 
     def test_remote_caldav_alarms_are_removed_from_cached_data(self):
         """Remote alarms are ignored rather than retained in Clockenstein's cache."""
-        payload = _event_ical({"summary": "Alert", "all_day": False,
+        payload = _get_event_ical({"summary": "Alert", "all_day": False,
                                "date_start": datetime.date.today(),
                                "date_end": datetime.date.today(),
                                "time_start": datetime.time(9), "time_end": datetime.time(10)}, UTC)

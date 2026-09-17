@@ -8,7 +8,7 @@ from pathlib import Path
 
 DEFAULT_SOUND = os.path.join("@datadir@", "clockenstein", "sounds", "notification.oga")
 
-def _data_dir():
+def _get_data_dir():
     override = os.environ.get("CLOCKENSTEIN_DATA_DIR")
     return Path(override) if override else Path.home() / ".local" / "share" / "clockenstein"
 
@@ -17,7 +17,7 @@ class AlarmStore:
     """Alarm storage shared by Clocks and the daemon."""
 
     def __init__(self, data_dir=None):
-        self.data_dir = Path(data_dir) if data_dir else _data_dir()
+        self.data_dir = Path(data_dir) if data_dir else _get_data_dir()
         self.path = self.data_dir / "alarms.db"
         self.data_dir.mkdir(parents=True, exist_ok=True)
         with self._connection(write=True) as connection:

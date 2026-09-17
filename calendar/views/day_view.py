@@ -141,7 +141,7 @@ class DayView(Gtk.Box):
                 start_minutes = DAY_START_MINUTE
                 end_minutes = DAY_END_MINUTE
             else:
-                start_minutes, end_minutes = _timed_segment_minutes(event, current_date)
+                start_minutes, end_minutes = _get_timed_segment_minutes(event, current_date)
                 if end_minutes <= start_minutes:
                     continue
 
@@ -154,7 +154,7 @@ class DayView(Gtk.Box):
             event_button.connect("clicked", lambda _, clicked_event=event: self.on_event(clicked_event))
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             content.set_valign(Gtk.Align.CENTER if full_day_column else Gtk.Align.START)
-            title, when, location = _event_label_parts(
+            title, when, location = _get_event_label_parts(
                 event, start_minutes, end_minutes, full_day_column, self.time_format
             )
             if full_day_column:
@@ -193,7 +193,7 @@ class DayView(Gtk.Box):
         self.show_all()
         if getattr(self, "_scroll_date", None) != current_date:
             self._scroll_date = current_date
-            scroll_minute = _initial_scroll_minute(
+            scroll_minute = _get_initial_scroll_minute(
                 day_events, (current_date,), current_date == self.today
             )
             GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
@@ -301,7 +301,7 @@ def _timeline_y(minutes):
     return ALL_DAY_HEIGHT + _minute_to_y(minutes)
 
 
-def _timed_segment_minutes(event, day):
+def _get_timed_segment_minutes(event, day):
     start = (_time_minutes(event["time_start"])
              if day == event["date_start"] else DAY_START_MINUTE)
     end = (_time_minutes(event["time_end"])
@@ -309,14 +309,14 @@ def _timed_segment_minutes(event, day):
     return start, end
 
 
-def _initial_scroll_minute(events, days, include_now):
+def _get_initial_scroll_minute(events, days, include_now):
     relevant = []
     for event in events:
         if event.get("all_day") or event.get("time_start") is None:
             continue
         for day in days:
             if event["date_start"] <= day <= event.get("date_end", event["date_start"]):
-                start, _end = _timed_segment_minutes(event, day)
+                start, _end = _get_timed_segment_minutes(event, day)
                 relevant.append(start)
     if include_now:
         now = datetime.datetime.now()
@@ -324,7 +324,7 @@ def _initial_scroll_minute(events, days, include_now):
     return max(0, min(relevant) - 60) if relevant else 8 * 60
 
 
-def _event_label_parts(event, start_minutes, end_minutes, all_day, time_format="locale"):
+def _get_event_label_parts(event, start_minutes, end_minutes, all_day, time_format="locale"):
     title = event.get("summary") or _("Untitled")
     when = _("All day") if all_day else (
         f"{_format_minutes(start_minutes, time_format)}–{_format_minutes(end_minutes, time_format)}"

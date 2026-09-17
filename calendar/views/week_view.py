@@ -10,12 +10,12 @@ _ = l10n("clockenstein")
 
 from clockenstein.formatting import WEEKDAY_NAMES, format_time, start_of_week
 from views.colors import apply_tinted_event_color
-from views.month_view import _activate_event, _event_has_ended, _event_tooltip
+from views.month_view import _activate_event, _event_has_ended, _get_event_tooltip
 from views.day_view import (ALL_DAY_EVENT_MARGIN, ALL_DAY_HEIGHT, HOUR_HEIGHT,
                             DAY_END_MINUTE, DAY_START_MINUTE,
                             _assign_event_columns, _draw_day_grid, _draw_now_line,
                             _minute_to_y,
-                            _initial_scroll_minute, _timed_segment_minutes)
+                            _get_initial_scroll_minute, _get_timed_segment_minutes)
 
 START_HOUR  = 0
 END_HOUR    = 24
@@ -197,7 +197,7 @@ class WeekView(Gtk.Box):
         self.show_all()
         if getattr(self, "_scroll_week", None) != start:
             self._scroll_week = start
-            scroll_minute = _initial_scroll_minute(events, week, self._shows_today)
+            scroll_minute = _get_initial_scroll_minute(events, week, self._shows_today)
             GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
                           _minute_to_y(scroll_minute))
         self._update_now_line()
@@ -312,7 +312,7 @@ class _DayColumn(Gtk.Overlay):
             if full_day:
                 start_minutes, end_minutes = DAY_START_MINUTE, DAY_END_MINUTE
             else:
-                start_minutes, end_minutes = _timed_segment_minutes(event, day)
+                start_minutes, end_minutes = _get_timed_segment_minutes(event, day)
                 if end_minutes <= start_minutes:
                     continue
             event_button = _WeekEventButton()
@@ -322,7 +322,7 @@ class _DayColumn(Gtk.Overlay):
             if _event_has_ended(event):
                 event_button.set_opacity(0.5)
             event_button.connect("button-press-event", _activate_event, self.on_event, event)
-            tooltip_markup = _event_tooltip(event)
+            tooltip_markup = _get_event_tooltip(event)
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             content.set_valign(Gtk.Align.CENTER if full_day else Gtk.Align.START)
             content.set_margin_top(5)

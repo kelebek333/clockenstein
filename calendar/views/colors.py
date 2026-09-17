@@ -13,7 +13,7 @@ def apply_tinted_event_color(widget, event, show_accent=True):
     red = round(rgba.red * 255)
     green = round(rgba.green * 255)
     blue = round(rgba.blue * 255)
-    provider = _tinted_event_provider(red, green, blue, show_accent)
+    provider = _get_tinted_event_provider(red, green, blue, show_accent)
     widget.get_style_context().add_provider(
         provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 10
     )
@@ -21,7 +21,7 @@ def apply_tinted_event_color(widget, event, show_accent=True):
 
 
 @lru_cache(maxsize=32)
-def _tinted_event_provider(red, green, blue, show_accent):
+def _get_tinted_event_provider(red, green, blue, show_accent):
     accent = (f"border-left: 4px solid rgb({red}, {green}, {blue});" if show_accent else
               "border-left: none;")
     provider = Gtk.CssProvider()

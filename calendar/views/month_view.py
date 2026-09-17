@@ -302,7 +302,7 @@ class _SpanPill(Gtk.EventBox):
         if _event_has_ended(event):
             self.set_opacity(0.5)
         self.connect("button-press-event", _activate_event, on_event, event)
-        self.set_tooltip_markup(_event_tooltip(event, time_format))
+        self.set_tooltip_markup(_get_event_tooltip(event, time_format))
 
         content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         if single_timed:
@@ -327,7 +327,7 @@ class _SpanPill(Gtk.EventBox):
         self.add(content)
 
 
-def _event_tooltip(event, time_format="locale"):
+def _get_event_tooltip(event, time_format="locale"):
     title = GLib.markup_escape_text(event.get("summary") or _("Untitled"))
     properties = []
     if event.get("time_start") and not event.get("all_day"):

@@ -6,8 +6,8 @@ import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "calendar"))
 
-from views.day_view import (_assign_event_columns, _event_label_parts, _minute_to_y,
-                            _timed_segment_minutes)
+from views.day_view import (_assign_event_columns, _get_event_label_parts, _minute_to_y,
+                            _get_timed_segment_minutes)
 
 
 class DayLayoutTests(unittest.TestCase):
@@ -34,16 +34,16 @@ class DayLayoutTests(unittest.TestCase):
             "time_start": datetime.time(18, 45),
             "time_end": datetime.time(20, 30),
         }
-        self.assertEqual(_timed_segment_minutes(event, event["date_start"]),
+        self.assertEqual(_get_timed_segment_minutes(event, event["date_start"]),
                          (18 * 60 + 45, 24 * 60))
-        self.assertEqual(_timed_segment_minutes(event, datetime.date(2026, 8, 21)),
+        self.assertEqual(_get_timed_segment_minutes(event, datetime.date(2026, 8, 21)),
                          (0, 24 * 60))
-        self.assertEqual(_timed_segment_minutes(event, event["date_end"]),
+        self.assertEqual(_get_timed_segment_minutes(event, event["date_end"]),
                          (0, 20 * 60 + 30))
 
     def test_day_event_label_orders_title_time_and_location(self):
         """Day-view card content presents title, time, then location."""
-        parts = _event_label_parts(
+        parts = _get_event_label_parts(
             {"summary": "Match", "location": "Stadium"}, 18 * 60 + 45,
             20 * 60 + 30, False,
         )
