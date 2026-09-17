@@ -263,7 +263,7 @@ class ClockensteinDaemon:
                 self._emit_alarm(alarm, trigger)
                 self._emit_alarms_changed()
         except Exception as exc:
-            self.logger.error(f"Could not check reminders: {exc}")
+            self.logger.error(f"Could not check reminders and alarms: {exc}")
         return GLib.SOURCE_CONTINUE
 
     def _reload_reminder_events(self):

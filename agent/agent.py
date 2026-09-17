@@ -22,7 +22,7 @@ from clockenstein.drawing import draw_centered_circle
 from clockenstein.logging import Logger
 
 _ = l10n("clockenstein")
-APPLICATION_NAME = _("Calendar Event")
+REMINDER_TITLE = _("Calendar Event")
 
 ALARM_SOUND = DEFAULT_SOUND
 
@@ -41,7 +41,7 @@ class NotificationAgent:
 
     def run(self, test_reminder=None):
         GLib.set_prgname("org.x.clockenstein.Calendar")
-        GLib.set_application_name(APPLICATION_NAME)
+        GLib.set_application_name("Clockenstein")
         Gtk.init(None)
         Gtk.Window.set_default_icon_name("clockenstein-calendar")
         self.logger.log("Starting")
@@ -67,7 +67,7 @@ class NotificationAgent:
                 BUS_NAME, BUS_INTERFACE, "Alarm", BUS_PATH, None,
                 Gio.DBusSignalFlags.NONE, self._alarm_received,
             )
-            self.logger.log("Listening for reminders")
+            self.logger.log("Listening for reminders and alarms")
         signal.signal(signal.SIGINT, lambda _signum, _frame: Gtk.main_quit())
         signal.signal(signal.SIGTERM, lambda _signum, _frame: Gtk.main_quit())
         Gtk.main()
@@ -87,7 +87,7 @@ class NotificationAgent:
          start_timestamp, all_day) = parameters.unpack()
         self.logger.log(f"Received reminder for {uid}")
         self._show_reminder(
-            uid, summary or APPLICATION_NAME, start_timestamp, location, description,
+            uid, summary or REMINDER_TITLE, start_timestamp, location, description,
             calendar_name, calendar_color
         )
 
@@ -233,7 +233,7 @@ class NotificationAgent:
     def _show_reminder(self, uid, summary, start_timestamp, location, description,
                        calendar_name, calendar_color):
         window, content = self._new_notification_window(
-            APPLICATION_NAME, summary, uid, ALARM_SOUND, 3, 2 * 60,
+            REMINDER_TITLE, summary, uid, ALARM_SOUND, 3, 2 * 60,
             "clockenstein-calendar"
         )
         accent_rgba = Gdk.RGBA()
@@ -305,13 +305,13 @@ class NotificationAgent:
             window.relative_timer_id = 0
         self._stop_sound_loop(window)
         self.windows.discard(window)
-        self.logger.log(f"Dismissed reminder for {window.reminder_uid}")
+        self.logger.log(f"Dismissed notification for {window.reminder_uid}")
 
     def _dismiss(self, _button, window):
         window.destroy()
 
     def _snooze(self, _item, window, minutes):
-        self.logger.log(f"Snoozed reminder for {window.reminder_uid} for {minutes} minute(s)")
+        self.logger.log(f"Snoozed notification for {window.reminder_uid} for {minutes} minute(s)")
         self._stop_sound_loop(window)
         window.hide()
         GLib.timeout_add_seconds(minutes * 60, self._wake_snoozed, window,
@@ -319,7 +319,7 @@ class NotificationAgent:
 
     def _wake_snoozed(self, window, uid):
         if window in self.windows:
-            self.logger.log(f"Showing snoozed reminder for {uid}")
+            self.logger.log(f"Showing snoozed notification for {uid}")
             self._present_window(window)
             self._start_sound_loop(window, uid, window.sound_file,
                                    window.sound_interval, window.sound_limit)
@@ -366,13 +366,13 @@ class NotificationAgent:
         window.muted = item.get_active()
         if window.muted:
             self._stop_sound_loop(window)
-            self.logger.log(f"Muted reminder sound for {window.reminder_uid}")
+            self.logger.log(f"Muted notification sound for {window.reminder_uid}")
         elif window.get_visible():
             self._start_sound_loop(
                 window, window.reminder_uid, window.sound_file,
                 window.sound_interval, window.sound_limit,
             )
-            self.logger.log(f"Unmuted reminder sound for {window.reminder_uid}")
+            self.logger.log(f"Unmuted notification sound for {window.reminder_uid}")
 
     def _start_sound_loop(self, window, uid, sound_file=ALARM_SOUND,
                           sound_interval=3, sound_limit=2 * 60):

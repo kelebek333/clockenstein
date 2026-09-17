@@ -39,8 +39,8 @@ Depends:
 Suggests:
  clockenstein-notification-agent,
 Description: Background service for Clockenstein
- Clockenstein Daemon provides online calendar refreshes and the D-Bus event
- service used by desktop clients.
+ Clockenstein Daemon syncs online calendars, schedules event reminders and
+ alarms, and provides the D-Bus service used by desktop clients.
 
 Package: clockenstein-notification-agent
 Architecture: all
@@ -54,9 +54,9 @@ Depends:
  python3-setproctitle,
  python3-xapp,
  xapp-symbolic-icons,
-Description: Desktop reminder agent for Clockenstein
- The Clockenstein notification agent listens for reminder signals from the
- Clockenstein daemon and displays them in reminder windows.
+Description: Desktop notification agent for Clockenstein
+ The Clockenstein notification agent displays event reminders and alarms
+ from the daemon, plays their sounds, and provides snooze and mute controls.
 
 Package: clockenstein-calendar
 Architecture: all
