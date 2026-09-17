@@ -1,8 +1,8 @@
-# Clockenstein Calendar
+# Clockenstein
+
+Clock and Calendar applications for Linux desktops.
 
 <img width="1317" height="737" alt="image" src="https://github.com/user-attachments/assets/97f35ad3-e434-49cc-9ab1-1c37b216ecc7" />
-
-Calendar application for Linux desktops.
 
 ## Supported Calendars
 
@@ -18,10 +18,13 @@ affecting all instances at once.
 
 ## Architecture and synchronization
 
-`clockenstein-calendar` is the client application.
+`clockenstein-calendar` and `clockenstein-clocks` are the client applications.
+
+They save their changes to the shared stores and notify the daemon when it needs to reload them.
 
 `clockenstein-daemon` runs in the background, syncs remote calendars, schedules
-event reminders, and emits them over D-Bus.
+event reminders and alarms, and emits them over D-Bus. The client windows do not
+need to stay open for reminders or alarms to ring.
 
 Reminders are managed by Clockenstein, remote reminders are not supported.
 
@@ -36,8 +39,10 @@ The daemon:
 - syncs remote events on startup and then on a regular basis
 - communicates to clients via DBUS to tell when something has `Changed` or to accept or queue refresh requests
 
-`clockenstein-notification-agent` runs in the backgrounds, and listens for reminder signals from the daemon. When it gets a signal, it
-displays a reminder window with dismiss and snooze buttons.
+`clockenstein-notification-agent` runs in the background and listens for reminder
+and alarm signals from the daemon. It displays notification windows with dismiss,
+snooze and mute controls, and plays the selected sound. Both the daemon and agent
+need to be running for alarms to ring.
 
 Just like the daemon, it is started via XDG autostart, and it runs as a systemd user service which is respawned automatically when it dies.
 
@@ -108,10 +113,8 @@ CalDav we sync extra ranges from the remote.
 
 ## TODO
 
-- Set up translations
-- Support repeating tasks
-- Implement time utilities (alarms, stopwatch, timers)
-- Set up a Google app (the Clockenstein prototype uses GOA's google app, it needs its own app before release)
+- Implement stopwatch/timers
+- Implement timezones/world-clocks
 
 ## Dependencies
 
@@ -162,9 +165,9 @@ sudo apt build-dep --mark-auto .
 dpkg-buildpackage
 ```
 
-This creates a `.deb` package in the parent directory. After installing it, run
-`clockenstein-calendar` from the command line or open Calendar from the Office
-category of the application menu.
+This creates packages for clockenstein in the parent directory.
+After installing them, run `clockenstein-calendar` or `clockenstein-clocks`,
+or open Calendar or Clocks from the application menu.
 
 ### For other distributions
 
