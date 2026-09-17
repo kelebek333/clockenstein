@@ -29,6 +29,8 @@ install_data(
 
 install_data(
   'clockenstein/__init__.py',
+  'clockenstein/calendars.py',
+  'clockenstein/sync.py',
   'clockenstein/drawing.py',
   'clockenstein/formatting.py',
   'clockenstein/logging.py',
@@ -68,6 +70,7 @@ install_data(
 
 install_data(
   'calendar/backends/google.py',
+  'calendar/backends/remote.py',
   'calendar/backends/caldav.py',
   install_dir: join_paths(calendar_dir, 'backends'),
 )

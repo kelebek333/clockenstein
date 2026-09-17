@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "calendar"))
 from unittest.mock import patch
 from icalendar import Event
 
-from backends.caldav import CalDAVBackend, CalDAVUnavailable, _event_ical, _without_alarms
+from backends.caldav import CalDAVBackend, CalDAVUnavailable, _event_ical
 from store import _component_to_dict
 
 
@@ -31,20 +31,17 @@ class CalDAVBackendTests(unittest.TestCase):
             raw = {"calendar_id": "hidden", "url": "https://example.test/event.ics",
                    "ical": _event_ical({"date_start": start, "date_end": start,
                                         "all_day": True}, UTC, "event")}
-            backend.accounts = [{"id": "account", "username": "me",
-                                 "url": "https://example.test/", "calendars": [
-                                     {"id": "hidden", "visible": False}], "events": [raw]}]
+            backend.database.connect_account("caldav", {"id": "account", "name": "Account",
+                "username": "me", "url": "https://example.test/"}, [{"id": "hidden"}])
+            for event in backend._parse_events(raw["ical"], raw["url"]):
+                backend.database.save_event("caldav", "account", "hidden", event, UTC)
+            backend.set_visible("hidden", False, "account")
+            backend.clear_calendar_events("hidden", "account")
             with patch.object(backend, "_lookup_password", return_value="password"), \
                     patch.object(backend, "_open", return_value=(object(), [FakeCalendar("hidden", "Hidden")])):
                 self.assertEqual(backend.refresh(start, end), [])
-            self.assertEqual(backend.accounts[0]["events"], [])
-            # Hiding clears cached events immediately, without waiting for a sync.
-            backend.accounts[0]["events"] = [raw]
-            backend.set_visible("hidden", False, "account")
-            backend.clear_calendar_events("hidden", "account")
-            self.assertEqual(backend.accounts[0]["events"], [])
+            self.assertEqual(backend.get_events(include_hidden=True), [])
             backend.set_visible("hidden", True, "account")
-            self.assertEqual(backend.accounts[0]["events"], [])
             self.assertEqual(backend.get_events(), [])
 
     def test_timed_events_are_displayed_in_the_computer_timezone(self):
@@ -66,7 +63,7 @@ class CalDAVBackendTests(unittest.TestCase):
                     patch.object(backend, "_store_password") as store_password:
                 account_id = backend.connect("https://dav.example.test/", "me", "secret")
 
-            saved = (Path(directory) / "accounts.json").read_text(encoding="utf-8")
+            saved = json.dumps(backend.database.get_accounts("caldav"))
             self.assertNotIn("secret", saved)
             self.assertEqual(json.loads(saved)[0]["username"], "me")
             store_password.assert_called_once_with(account_id, "me", "secret")
@@ -86,7 +83,11 @@ class CalDAVBackendTests(unittest.TestCase):
                                                      "time_start": datetime.time(9),
                                                      "time_end": datetime.time(10)}, UTC, "one")}],
                     "name": "me — dav.example.test"}
-            backend.accounts = [info]
+            backend.database.connect_account("caldav", {key: value for key, value in info.items()
+                if key not in ("calendars", "events")}, info["calendars"])
+            for raw in info["events"]:
+                for parsed in backend._parse_events(raw["ical"], raw["url"]):
+                    backend.database.save_event("caldav", info["id"], raw["calendar_id"], parsed, UTC)
             event = backend.get_events()[0]
             self.assertEqual(event["provider"], "caldav")
             self.assertTrue(event["cached"])
@@ -109,7 +110,11 @@ class CalDAVBackendTests(unittest.TestCase):
         payload = payload.replace(
             "END:VEVENT", "BEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER:-PT10M\r\nEND:VALARM\r\nEND:VEVENT"
         )
-        self.assertNotIn("BEGIN:VALARM", _without_alarms(payload))
+        with tempfile.TemporaryDirectory() as directory:
+            backend = CalDAVBackend(Path(directory), UTC)
+            events = backend._parse_events(payload, "https://example.test/alert.ics")
+            self.assertNotIn("notification_minutes", events[0])
+            self.assertNotIn("ical", events[0])
 
 if __name__ == "__main__":
     unittest.main()

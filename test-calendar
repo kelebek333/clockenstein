@@ -1,5 +1,9 @@
 #!/bin/bash
+sudo cp data/org.x.clockenstein.gschema.xml /usr/share/glib-2.0/schemas/
+sudo glib-compile-schemas /usr/share/glib-2.0/schemas/
+sudo cp clockenstein/calendars.py clockenstein/sync.py /usr/lib/python3/dist-packages/clockenstein/
 sudo rm -rf /usr/share/clockenstein/calendar
 sudo cp -R calendar /usr/share/clockenstein/
+systemctl --user restart clockenstein-daemon.service
 killall clockenstein-calendar 2>/dev/null
 clockenstein-calendar &

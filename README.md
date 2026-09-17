@@ -46,8 +46,35 @@ Just like the daemon, it is started via XDG autostart, and it runs as a systemd 
 Clockenstein stores its data in `~/.local/share/clockenstein`:
 
 - Alarms are stored in `alarms.db`, a SQLite database shared by Clocks and the daemon.
-- Local calendars are stored as iCalendar (`.ics`) files.
-- Google and CalDAV account information and cached events are stored in JSON files.
+- Local calendars, Google and CalDAV accounts, calendar preferences and events
+  are stored in `calendars.db`, a SQLite database shared by Calendar and the daemon.
+- Google OAuth credentials are stored separately in `google/`. Accounts connected
+  through Online Accounts use its credentials instead. CalDAV passwords are kept
+  in the desktop keyring.
+
+Calendar and the daemon update individual database records. A remote sync updates
+the fetched calendar's events and sync status without rewriting account settings
+or calendar preferences. Remote event edits are sent to the server before the
+local database is updated.
+
+### Troubleshooting remote synchronization
+
+`sync/<provider>/<account-hash>/<calendar-hash>/latest.json` contains the latest
+completed event download for each remote calendar. The file identifies the account
+and calendar, when it was fetched and the requested date ranges. Google responses
+are saved as returned JSON pages; CalDAV responses contain each resource's URL and
+original iCalendar text. These are the libraries' responses, not HTTP traffic.
+No authorization headers or OAuth credentials are included.
+
+Downloads are saved before conversion to the shared event model, so data that
+cannot be parsed is available for inspection. `status.json` records the latest
+attempt's outcome. Failed downloads retain the previous `latest.json`; successful
+downloads replace it rather than accumulating history. These files are diagnostic
+copies, not the event cache used by Calendar.
+
+The data directory is private to its owner. Raw downloads contain personal event
+details: review them before sharing a bug report. Diagnostic copies are retained
+when an account is disconnected and can be removed from `sync/` manually.
 
 ### Limits, synchronization frequencies and ranges
 

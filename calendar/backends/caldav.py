@@ -1,6 +1,5 @@
 import datetime
 import hashlib
-import json
 import uuid
 import caldav
 from pathlib import Path
@@ -8,6 +7,8 @@ from urllib.parse import urlparse
 
 from icalendar import Calendar, Event
 from xapp.util import l10n
+from backends.remote import RemoteBackend
+from clockenstein.sync import SyncDownload
 
 _ = l10n("clockenstein")
 
@@ -18,25 +19,14 @@ class CalDAVUnavailable(RuntimeError):
     pass
 
 
-class CalDAVBackend:
+class CalDAVBackend(RemoteBackend):
+    provider = "caldav"
+
     SECRET_SCHEMA = "org.x.clockenstein.CalDAV"
     REQUEST_TIMEOUT_SECONDS = 20
 
     def __init__(self, data_dir: Path, timezone: datetime.tzinfo):
-        self.timezone = timezone
-        self.data_dir = Path(data_dir)
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.accounts_file = self.data_dir / "accounts.json"
-        self.accounts = self._read_json(self.accounts_file, [])
-        cache_changed = False
-        for account in self.accounts:
-            for event in account.get("events", []):
-                sanitized = _without_alarms(event.get("ical", ""))
-                if sanitized != event.get("ical", ""):
-                    event["ical"] = sanitized
-                    cache_changed = True
-        if cache_changed:
-            self._save()
+        super().__init__(data_dir, timezone)
         self._clients = {}
         self._calendars = {}
         self._errors = {}
@@ -47,10 +37,6 @@ class CalDAVBackend:
                     self._configured_accounts.add(account["id"])
             except Exception as exc:
                 self._errors[account["id"]] = str(exc)
-
-    @property
-    def has_accounts(self):
-        return bool(self.accounts)
 
     def account_states(self):
         return [{"id": a["id"], "name": a.get("name", a["username"]),
@@ -69,20 +55,14 @@ class CalDAVBackend:
             progress(_("Contacting CalDAV server…"))
         client, calendars = self._open(url, username, password)
         account_id = hashlib.sha256(f"{url}\0{username}".encode()).hexdigest()[:20]
-        account = next((a for a in self.accounts if a["id"] == account_id), None)
-        if account is None:
-            account = {"id": account_id, "url": url, "username": username,
-                       "name": f"{username} — {urlparse(url).hostname or url}",
-                       "calendars": [], "events": []}
-            self.accounts.append(account)
-        account.update(url=url, username=username)
-        account["calendars"] = self._merge_calendars(account.get("calendars", []), calendars)
+        account = {"id": account_id, "url": url, "username": username,
+                   "name": f"{username} — {urlparse(url).hostname or url}"}
         self._store_password(account_id, username, password)
+        self.database.connect_account(self.provider, account, self._calendar_metadata(calendars, account_id))
         self._configured_accounts.add(account_id)
         self._clients[account_id] = client
         self._calendars[account_id] = {str(c.url): c for c in calendars}
         self._errors.pop(account_id, None)
-        self._save()
         return account_id
 
     def disconnect(self, account_id):
@@ -90,84 +70,11 @@ class CalDAVBackend:
         if not account:
             return
         self._clear_password(account_id)
-        self.accounts.remove(account)
+        self.database.disconnect_account(self.provider, account_id)
         self._clients.pop(account_id, None)
         self._calendars.pop(account_id, None)
         self._errors.pop(account_id, None)
         self._configured_accounts.discard(account_id)
-        self._save()
-
-    def list_calendars(self):
-        result = []
-        for account in self.accounts:
-            online = self._account_available(account["id"])
-            for cal in account.get("calendars", []):
-                result.append({"id": cal["id"], "name": cal.get("name", _("Calendar")),
-                               "color": cal.get("color", self._color(cal["id"])),
-                               "provider": "caldav", "account_id": account["id"],
-                               "account_name": account.get("name", account["username"]),
-                               "visible": cal.get("visible", True), "primary": False,
-                               "reminders": cal.get("reminders", True),
-                               "last_sync": cal.get("last_sync"),
-                               "sync_error": cal.get("sync_error", ""),
-                               "writable": cal.get("writable", True), "available": online})
-        return result
-
-    def set_visible(self, calendar_id, visible, account_id=None):
-        for account in self.accounts:
-            if account_id and account["id"] != account_id:
-                continue
-            for cal in account.get("calendars", []):
-                if cal["id"] == calendar_id:
-                    cal["visible"] = bool(visible)
-                    self._save()
-                    return
-
-    def clear_calendar_events(self, calendar_id, account_id):
-        account = next(account for account in self.accounts if account["id"] == account_id)
-        account["events"] = [event for event in account.get("events", [])
-                             if event.get("calendar_id") != calendar_id]
-        self._save()
-
-    def set_reminders(self, calendar_id, enabled, account_id=None):
-        for account in self.accounts:
-            if account_id and account["id"] != account_id:
-                continue
-            for cal in account.get("calendars", []):
-                if cal["id"] == calendar_id:
-                    cal["reminders"] = bool(enabled)
-                    self._save()
-                    return
-
-    def get_events(self, start=None, end=None, include_hidden=False):
-        result = []
-        for account in self.accounts:
-            online = self._account_available(account["id"])
-            calendars = {c["id"]: c for c in account.get("calendars", [])
-                         if include_hidden or c.get("visible", True)}
-            for raw in account.get("events", []):
-                cal = calendars.get(raw.get("calendar_id"))
-                if not cal:
-                    continue
-                try:
-                    calendar = Calendar.from_ical(raw["ical"])
-                    component = next(c for c in calendar.walk()
-                                     if c.name == "VEVENT")
-                    event = _component_to_dict(component, self.timezone)
-                except Exception:
-                    continue
-                if start and event["date_end"] < start or end and event["date_start"] > end:
-                    continue
-                event.update(provider="caldav", account_id=account["id"],
-                             account_name=account.get("name", account["username"]),
-                             calendar_id=cal["id"], calendar_name=cal.get("name", _("Calendar")),
-                             calendar_color=cal.get("color", self._color(cal["id"])),
-                             reminders=cal.get("reminders", True),
-                             editable=bool(online and cal.get("writable", True)
-                                           and not _is_recurring(calendar)), cached=not online,
-                             _caldav_url=raw.get("url"))
-                result.append(event)
-        return result
 
     def refresh(self, start, end, target_account_id=None, target_calendar_id=None):
         errors = []
@@ -175,6 +82,7 @@ class CalDAVBackend:
             account_id = account["id"]
             if target_account_id and account_id != target_account_id:
                 continue
+            account_error = None
             try:
                 password = self._lookup_password(account_id)
                 if not password:
@@ -184,47 +92,55 @@ class CalDAVBackend:
                 client, remote = self._open(account["url"], account["username"], password)
                 self._clients[account_id] = client
                 self._calendars[account_id] = {str(c.url): c for c in remote}
-                account["calendars"] = self._merge_calendars(account.get("calendars", []), remote)
-                fetched = []
-                for info in account["calendars"]:
-                    if target_calendar_id and info["id"] != target_calendar_id:
-                        continue
-                    if not info.get("visible", True) and not target_calendar_id:
-                        continue
-                    calendar = self._calendars[account_id].get(info["id"])
-                    if calendar is None:
-                        continue
-                    range_start = datetime.datetime.combine(start, datetime.time.min, self.timezone)
-                    range_end = datetime.datetime.combine(
-                        end + datetime.timedelta(days=1), datetime.time.min, self.timezone)
-                    try:
-                        remote_events = calendar.date_search(range_start, range_end, expand=True)
-                    except Exception:
-                        # Expansion is optional and rejected by some otherwise valid servers.
-                        remote_events = calendar.date_search(range_start, range_end, expand=False)
-                    for remote_event in remote_events:
-                        payload = remote_event.data
-                        if isinstance(payload, bytes):
-                            payload = payload.decode("utf-8")
-                        fetched.append({"calendar_id": info["id"], "url": str(remote_event.url),
-                                        "ical": _without_alarms(payload)})
-                    info["last_sync"] = int(datetime.datetime.now().timestamp())
-                    info["sync_error"] = ""
-                retained = [event for event in account.get("events", [])
-                            if (target_calendar_id and event.get("calendar_id") != target_calendar_id)
-                            or not _overlaps(event, start, end, self.timezone)]
-                account["events"] = retained + fetched
-                self._errors.pop(account_id, None)
+                self.database.update_calendar_list(self.provider, account_id, self._calendar_metadata(remote, account_id))
             except Exception as exc:
                 self._clients.pop(account_id, None)
                 self._calendars.pop(account_id, None)
                 self._errors[account_id] = str(exc)
-                for info in account.get("calendars", []):
-                    if target_calendar_id and info["id"] != target_calendar_id:
-                        continue
-                    info["sync_error"] = str(exc)
-                errors.append(f"{account.get('name', account['username'])}: {exc}")
-        self._save()
+                self._sync_failed(account_id, exc, target_calendar_id, start, end)
+                errors.append(f"{account['name']}: {exc}")
+                continue
+            for info in self.database.get_calendars(self.provider, account_id):
+                if target_calendar_id and info["id"] != target_calendar_id:
+                    continue
+                if not info["visible"]:
+                    continue
+                calendar = self._calendars[account_id].get(info["id"])
+                if calendar is None:
+                    continue
+                download = SyncDownload(self.database.data_dir, self.provider, account_id, info["id"], start, end)
+                try:
+                    range_start = datetime.datetime.combine(start, datetime.time.min, self.timezone)
+                    range_end = datetime.datetime.combine(end + datetime.timedelta(days=1),
+                                                          datetime.time.min, self.timezone)
+                    try:
+                        remote_events = calendar.date_search(range_start, range_end, expand=True)
+                    except Exception:
+                        # Some servers do not support recurrence expansion.
+                        remote_events = calendar.date_search(range_start, range_end, expand=False)
+                    resources = []
+                    for remote_event in remote_events:
+                        payload = remote_event.data
+                        if isinstance(payload, bytes):
+                            payload = payload.decode("utf-8")
+                        resources.append({"url": str(remote_event.url), "ical": payload})
+                    download.add(start, end, resources)
+                    download.save()
+                    events = [event for resource in resources
+                              for event in self._parse_events(resource["ical"], resource["url"])]
+                    self.database.apply_sync(info, events, start, end, self.timezone)
+                    download.finish()
+                except Exception as exc:
+                    download.finish(exc)
+                    account_error = str(exc)
+                    self._errors[account_id] = str(exc)
+                    self._sync_failed(account_id, exc, info["id"])
+                    errors.append(f"{account['name']}: {exc}")
+            if account_error:
+                self._clients.pop(account_id, None)
+                self._calendars.pop(account_id, None)
+            else:
+                self._errors.pop(account_id, None)
         return errors
 
     def create_event(self, data):
@@ -234,38 +150,35 @@ class CalDAVBackend:
         return data
 
     def update_event(self, uid, data):
-        account = next(a for a in self.accounts if a["id"] == data["account_id"])
         source_id = data.get("original_calendar_id") or data["calendar_id"]
-        cached = next((e for e in account.get("events", [])
-                       if e.get("calendar_id") == source_id and _cached_uid(e) == uid), None)
-        if not cached or not cached.get("url"):
+        cached = next(iter(self.database.get_events(self.provider, self.timezone, include_hidden=True,
+                                                account_id=data["account_id"], calendar_id=source_id, uid=uid)), None)
+        if not cached or not cached.get("_caldav_url"):
             raise CalDAVUnavailable(_("The event has no CalDAV resource URL"))
         parent = self._require_calendar(data["account_id"], data["calendar_id"])
         if source_id != data["calendar_id"]:
             remote = parent.save_event(_event_ical(data, self.timezone, uid))
             source = self._require_calendar(data["account_id"], source_id)
             caldav.Event(client=self._clients[data["account_id"]], parent=source,
-                         url=cached["url"]).delete()
+                         url=cached["_caldav_url"]).delete()
             self._cache_remote(data["account_id"], data["calendar_id"], remote,
-                               cached["url"])
+                               source_id)
             return data
         remote = caldav.Event(client=self._clients[data["account_id"]], parent=parent,
-                             url=cached["url"], data=_event_ical(data, self.timezone, uid))
+                             url=cached["_caldav_url"], data=_event_ical(data, self.timezone, uid))
         remote.save()
-        self._cache_remote(data["account_id"], data["calendar_id"], remote, cached["url"])
+        self._cache_remote(data["account_id"], data["calendar_id"], remote)
         return data
 
     def delete_event(self, uid, calendar_id=None, account_id=None):
-        account = next(a for a in self.accounts if a["id"] == account_id)
-        cached = next((e for e in account.get("events", [])
-                       if e.get("calendar_id") == calendar_id and _cached_uid(e) == uid), None)
-        if not cached or not cached.get("url"):
+        cached = next(iter(self.database.get_events(self.provider, self.timezone, include_hidden=True,
+                                                account_id=account_id, calendar_id=calendar_id, uid=uid)), None)
+        if not cached or not cached.get("_caldav_url"):
             return False
         parent = self._require_calendar(account_id, calendar_id)
         caldav.Event(client=self._clients[account_id], parent=parent,
-                    url=cached["url"]).delete()
-        account["events"].remove(cached)
-        self._save()
+                    url=cached["_caldav_url"]).delete()
+        self.database.delete_event(self.provider, account_id, calendar_id, uid)
         return True
 
     def _require_calendar(self, account_id, calendar_id):
@@ -290,17 +203,27 @@ class CalDAVBackend:
             raise CalDAVUnavailable(_("This CalDAV account is offline. It is now read-only."))
         return calendar
 
-    def _cache_remote(self, account_id, calendar_id, remote, old_url=None):
-        account = next(a for a in self.accounts if a["id"] == account_id)
+    def _cache_remote(self, account_id, calendar_id, remote, source_id=None):
         payload = remote.data
         if isinstance(payload, bytes):
             payload = payload.decode("utf-8")
-        url = str(remote.url)
-        account["events"] = [e for e in account.get("events", [])
-                             if e.get("url") not in (url, old_url)]
-        account["events"].append({"calendar_id": calendar_id, "url": url,
-                                  "ical": _without_alarms(payload)})
-        self._save()
+        for event in self._parse_events(payload, str(remote.url)):
+            self.database.save_event(self.provider, account_id, calendar_id,
+                                     event, self.timezone, source_id)
+
+    def _parse_events(self, payload, url):
+        calendar = Calendar.from_ical(payload)
+        result = []
+        recurring = _is_recurring(calendar)
+        for component in calendar.walk("VEVENT"):
+            event = _component_to_dict(component, self.timezone)
+            recurrence = component.get("recurrence-id")
+            instance = str(recurrence.dt) if recurrence else str(component["dtstart"].dt)
+            event["event_key"] = event["uid"] + "|" + instance if recurring else event["uid"]
+            event["editable"] = not recurring
+            event["_caldav_url"] = url
+            result.append(event)
+        return result
 
     @classmethod
     def _open(cls, url, username, password):
@@ -337,23 +260,19 @@ class CalDAVBackend:
         from gi.repository import Secret
         Secret.password_clear_sync(cls._schema(), {"account": account_id}, None)
 
-    @staticmethod
-    def _merge_calendars(old, remote):
-        preferences = {c["id"]: c for c in old}
+    def _calendar_metadata(self, remote, account_id):
+        previous = {calendar["id"]: calendar for calendar in
+                    self.database.get_calendars(self.provider, account_id)}
         result = []
         for calendar in remote:
             calendar_id = str(calendar.url)
-            previous = preferences.get(calendar_id, {})
+            old = previous.get(calendar_id, {})
             try:
-                name = calendar.name or previous.get("name") or _("Calendar")
+                name = calendar.name or old.get("name") or _("Calendar")
             except Exception:
-                name = previous.get("name") or _("Calendar")
+                name = old.get("name") or _("Calendar")
             result.append({"id": calendar_id, "name": str(name),
-                           "color": previous.get("color", CalDAVBackend._color(calendar_id)),
-                           "visible": previous.get("visible", True), "writable": True,
-                           "reminders": previous.get("reminders", True),
-                           "last_sync": previous.get("last_sync"),
-                           "sync_error": previous.get("sync_error", "")})
+                           "color": old.get("color", self._color(calendar_id)), "writable": True})
         return result
 
     @staticmethod
@@ -372,19 +291,6 @@ class CalDAVBackend:
         colors = ("#3584e4", "#33d17a", "#e5a50a", "#e66100", "#c061cb", "#1c71d8")
         return colors[int(hashlib.sha256(value.encode()).hexdigest()[:4], 16) % len(colors)]
 
-    def _save(self):
-        temp = self.accounts_file.with_suffix(".tmp")
-        temp.write_text(json.dumps(self.accounts, indent=2), encoding="utf-8")
-        temp.replace(self.accounts_file)
-
-    @staticmethod
-    def _read_json(path, default):
-        try:
-            value = json.loads(path.read_text(encoding="utf-8"))
-            return value if isinstance(value, list) else default
-        except (OSError, ValueError):
-            return default
-
 
 def _event_ical(data, timezone: datetime.tzinfo, uid=None):
     calendar = Calendar()
@@ -398,34 +304,6 @@ def _event_ical(data, timezone: datetime.tzinfo, uid=None):
     return calendar.to_ical().decode("utf-8")
 
 
-def _without_alarms(payload):
-    try:
-        calendar = Calendar.from_ical(payload)
-        for component in calendar.walk("VEVENT"):
-            component.subcomponents = [child for child in component.subcomponents
-                                       if child.name != "VALARM"]
-        return calendar.to_ical().decode("utf-8")
-    except Exception:
-        return payload
-
-
 def _is_recurring(calendar):
     return any(any(key in event for key in ("RRULE", "RDATE", "EXDATE", "RECURRENCE-ID"))
                for event in calendar.walk("VEVENT"))
-
-
-def _cached_uid(raw):
-    try:
-        return str(next(c for c in Calendar.from_ical(raw["ical"]).walk()
-                        if c.name == "VEVENT").get("uid", ""))
-    except Exception:
-        return ""
-
-
-def _overlaps(raw, start, end, timezone):
-    try:
-        event = _component_to_dict(next(c for c in Calendar.from_ical(raw["ical"]).walk()
-                                        if c.name == "VEVENT"), timezone)
-        return event["date_end"] >= start and event["date_start"] <= end
-    except Exception:
-        return False
