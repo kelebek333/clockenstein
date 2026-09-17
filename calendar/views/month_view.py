@@ -145,7 +145,12 @@ class MonthView(Gtk.Box):
         occupied = [[set() for _lane in range(self.max_lanes)] for _row in range(6)]
         used_lanes = [0] * 6
         hidden_by_date = {}
-        for event in sorted(events, key=lambda event: (event["date_start"], -((event["date_end"] - event["date_start"]).days))):
+        def get_sort_key(event):
+            duration_days = (event["date_end"] - event["date_start"]).days
+            # Place longer events first when they start on the same day.
+            return event["date_start"], -duration_days
+
+        for event in sorted(events, key=get_sort_key):
             segment_start = max(event["date_start"], grid_start)
             visible_end = min(event["date_end"], grid_end)
             while segment_start <= visible_end:
@@ -154,8 +159,11 @@ class MonthView(Gtk.Box):
                 segment_end = min(visible_end, grid_start + datetime.timedelta(days=row * 7 + 6))
                 end_col = (segment_end - (grid_start + datetime.timedelta(days=row * 7))).days
                 columns = set(range(col, end_col + 1))
-                lane = next((index for index, taken in enumerate(occupied[row])
-                             if not taken.intersection(columns)), None)
+                lane = None
+                for index, taken in enumerate(occupied[row]):
+                    if not taken.intersection(columns):
+                        lane = index
+                        break
                 if lane is not None:
                     occupied[row][lane].update(columns)
                     used_lanes[row] = max(used_lanes[row], lane + 1)
@@ -321,7 +329,12 @@ class _SpanPill(Gtk.EventBox):
         summary = event.get("summary") or _("Untitled")
         escaped_summary = GLib.markup_escape_text(summary)
         label.set_markup(f"<b>{escaped_summary}</b>")
-        label.set_margin_start(0 if single_timed else (9 if show_accent else 4))
+        if single_timed:
+            label.set_margin_start(0)
+        elif show_accent:
+            label.set_margin_start(9)
+        else:
+            label.set_margin_start(4)
         label.set_margin_end(4)
         content.pack_start(label, True, True, 0)
         self.add(content)

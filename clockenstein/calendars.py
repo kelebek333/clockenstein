@@ -56,9 +56,16 @@ class CalendarDatabase:
 
     def get_accounts(self, provider):
         with self.connection() as connection:
-            return [{**json.loads(row["details"]), "id": row["id"], "name": row["name"]}
-                    for row in connection.execute("SELECT * FROM accounts WHERE provider = ? ORDER BY rowid",
-                                          (provider,))]
+            rows = connection.execute(
+                "SELECT * FROM accounts WHERE provider = ? ORDER BY rowid", (provider,)
+            )
+            accounts = []
+            for row in rows:
+                account = json.loads(row["details"])
+                account["id"] = row["id"]
+                account["name"] = row["name"]
+                accounts.append(account)
+            return accounts
 
     def connect_account(self, provider, account, calendars):
         details = {key: value for key, value in account.items() if key not in ("id", "name")}
@@ -172,7 +179,9 @@ class CalendarDatabase:
             result = []
             for row in connection.execute(query, parameters):
                 event = self._get_event_from_row(row, timezone)
-                if start and event["date_end"] < start or end and event["date_start"] > end:
+                if start and event["date_end"] < start:
+                    continue
+                if end and event["date_start"] > end:
                     continue
                 result.append(event)
             return result
@@ -267,7 +276,9 @@ class CalendarDatabase:
                             dates.append(datetime.date.fromisoformat(row[field]))
                         else:
                             event_datetime = datetime.datetime.fromisoformat(row[field])
-                            dates.append((event_datetime.astimezone(timezone) if event_datetime.tzinfo else event_datetime).date())
+                            if event_datetime.tzinfo is not None:
+                                event_datetime = event_datetime.astimezone(timezone)
+                            dates.append(event_datetime.date())
                     overlaps = dates[1] >= start and dates[0] <= end
                 if overlaps:
                     connection.execute("DELETE FROM events WHERE provider=? AND account_id=? AND calendar_id=? AND event_key=?",

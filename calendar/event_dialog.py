@@ -186,12 +186,12 @@ class EventDialog(Gtk.Dialog):
         text_cell = Gtk.CellRendererText()
         self.calendar_combo.pack_start(text_cell, True)
         self.calendar_combo.add_attribute(text_cell, "text", 1)
-        active_calendar = next(
-            (index for index, calendar in enumerate(self.calendar_options)
-             if calendar.get("id", calendar.get("calendar_id"))
-             == self.event.get("calendar_id")),
-            0,
-        )
+        active_calendar = 0
+        for index, calendar in enumerate(self.calendar_options):
+            calendar_id = calendar.get("id", calendar.get("calendar_id"))
+            if calendar_id == self.event.get("calendar_id"):
+                active_calendar = index
+                break
         self.calendar_combo.set_active(active_calendar)
         self.calendar_combo.set_sensitive(self.editable and len(self.calendar_options) > 1)
         grid.attach(self.calendar_combo, 1, 1, 2, 1)

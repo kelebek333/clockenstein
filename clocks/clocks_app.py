@@ -74,8 +74,11 @@ def _is_past_one_off(alarm, now=None):
 
 def _get_next_alarm_label(alarms):
     now = datetime.datetime.now()
-    triggers = [trigger for alarm in alarms
-                if (trigger := _get_next_alarm_time(alarm, now)) is not None]
+    triggers = []
+    for alarm in alarms:
+        trigger = _get_next_alarm_time(alarm, now)
+        if trigger is not None:
+            triggers.append(trigger)
     if not triggers:
         return None
     next_trigger = min(triggers)

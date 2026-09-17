@@ -151,8 +151,11 @@ class CalDAVBackend(RemoteBackend):
 
     def update_event(self, uid, data):
         source_id = data.get("original_calendar_id") or data["calendar_id"]
-        cached = next(iter(self.database.get_events(self.provider, self.timezone, include_hidden=True,
-                                                account_id=data["account_id"], calendar_id=source_id, uid=uid)), None)
+        events = self.database.get_events(
+            self.provider, self.timezone, include_hidden=True,
+            account_id=data["account_id"], calendar_id=source_id, uid=uid
+        )
+        cached = events[0] if events else None
         if not cached or not cached.get("_caldav_url"):
             raise CalDAVUnavailable(_("The event has no CalDAV resource URL"))
         parent = self._require_calendar(data["account_id"], data["calendar_id"])
@@ -171,8 +174,11 @@ class CalDAVBackend(RemoteBackend):
         return data
 
     def delete_event(self, uid, calendar_id=None, account_id=None):
-        cached = next(iter(self.database.get_events(self.provider, self.timezone, include_hidden=True,
-                                                account_id=account_id, calendar_id=calendar_id, uid=uid)), None)
+        events = self.database.get_events(
+            self.provider, self.timezone, include_hidden=True,
+            account_id=account_id, calendar_id=calendar_id, uid=uid
+        )
+        cached = events[0] if events else None
         if not cached or not cached.get("_caldav_url"):
             return False
         parent = self._require_calendar(account_id, calendar_id)

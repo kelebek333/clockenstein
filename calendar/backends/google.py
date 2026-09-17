@@ -275,10 +275,14 @@ class GoogleBackend(RemoteBackend):
         return service
 
     def _validate_event_range(self, data):
-        account = next((account for account in self.accounts
-                        if account["id"] == data["account_id"]), None)
-        calendar = next((calendar for calendar in self.database.get_calendars(self.provider, data["account_id"])
-                         if calendar["id"] == data["calendar_id"]), None) if account else None
+        account_exists = any(account["id"] == data["account_id"] for account in self.accounts)
+        calendar = None
+        if account_exists:
+            calendars = self.database.get_calendars(self.provider, data["account_id"])
+            for candidate in calendars:
+                if candidate["id"] == data["calendar_id"]:
+                    calendar = candidate
+                    break
         if calendar is None:
             raise GoogleUnavailable(_("Google calendar not found."))
         if not google_event_fits_sync_range(
@@ -417,11 +421,17 @@ class GoogleBackend(RemoteBackend):
 
     @staticmethod
     def _get_calendar_metadata(remote):
-        return [{"id": calendar["id"], "name": calendar.get("summary", calendar["id"]),
-                 "color": calendar.get("backgroundColor", "#4285f4"),
-                 "writable": calendar.get("accessRole") in ("writer", "owner"),
-                 "primary": calendar.get("primary", False), "visible": calendar.get("selected", True)}
-                for calendar in remote]
+        calendars = []
+        for calendar in remote:
+            calendars.append({
+                "id": calendar["id"],
+                "name": calendar.get("summary", calendar["id"]),
+                "color": calendar.get("backgroundColor", "#4285f4"),
+                "writable": calendar.get("accessRole") in ("writer", "owner"),
+                "primary": calendar.get("primary", False),
+                "visible": calendar.get("selected", True),
+            })
+        return calendars
 
     @staticmethod
     def _get_scopes_for_credentials():

@@ -465,26 +465,32 @@ class MainWindow(Gtk.Window):
             box.remove(child)
 
         calendars = self.store.list_calendars()
-        accounts = [(_("Local"), "local", [calendar_info for calendar_info in calendars if calendar_info["provider"] == "local"],
-                     None, None)]
+        local_calendars = []
+        for calendar_info in calendars:
+            if calendar_info["provider"] == "local":
+                local_calendars.append(calendar_info)
+        accounts = [(_("Local"), "local", local_calendars, None, None)]
         account_keys = []
         for calendar_info in calendars:
             key = (calendar_info["provider"], calendar_info.get("account_id"))
             if calendar_info["provider"] != "local" and key not in account_keys:
                 account_keys.append(key)
-        states = {
-            **{("google", s["id"]): s for s in self.store.google.get_account_states()},
-            **{("caldav", s["id"]): s for s in self.store.caldav.get_account_states()},
-        }
+        states = {}
+        for backend in (self.store.google, self.store.caldav):
+            for state in backend.get_account_states():
+                states[(backend.provider, state["id"])] = state
         for provider, account_id in account_keys:
             state = states.get((provider, account_id), {})
             label = state.get("name", account_id)
             status = _("Online") if state.get("online") else _("Offline, read only")
             frequency = (_("Sync every 2 hours") if provider == "google"
                          else _("Sync every 15 minutes"))
-            accounts.append((label, (provider, account_id),
-                             [calendar_info for calendar_info in calendars if calendar_info["provider"] == provider
-                              and calendar_info.get("account_id") == account_id], status, frequency))
+            account_calendars = []
+            for calendar_info in calendars:
+                if (calendar_info["provider"] == provider
+                        and calendar_info.get("account_id") == account_id):
+                    account_calendars.append(calendar_info)
+            accounts.append((label, (provider, account_id), account_calendars, status, frequency))
 
         table = Gtk.Grid(column_spacing=16, row_spacing=4)
         table.set_hexpand(True)
@@ -527,10 +533,20 @@ class MainWindow(Gtk.Window):
                 table.attach(disconnect, 5, row, 1, 1)
             row += 1
 
-            calendar_groups = [(_("Local calendars"), items)] if account_id == "local" else [
-                (_("My Calendars"), [calendar_info for calendar_info in items if calendar_info.get("writable", False)]),
-                (_("Other Calendars"), [calendar_info for calendar_info in items if not calendar_info.get("writable", False)]),
-            ]
+            if account_id == "local":
+                calendar_groups = [(_("Local calendars"), items)]
+            else:
+                writable_calendars = []
+                other_calendars = []
+                for calendar_info in items:
+                    if calendar_info.get("writable", False):
+                        writable_calendars.append(calendar_info)
+                    else:
+                        other_calendars.append(calendar_info)
+                calendar_groups = [
+                    (_("My Calendars"), writable_calendars),
+                    (_("Other Calendars"), other_calendars),
+                ]
             for group_name, group_items in calendar_groups:
                 if not group_items:
                     continue
