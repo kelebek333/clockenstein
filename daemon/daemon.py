@@ -38,6 +38,9 @@ INTERFACE_XML = f"""
       <arg type="a(sssbxxx)" name="events" direction="out"/>
     </method>
     <method name="NotifyChanged"/>
+    <method name="GetSyncState">
+      <arg type="b" name="refreshing" direction="out"/>
+    </method>
     <method name="RefreshCalendar">
       <arg type="s" name="provider" direction="in"/>
       <arg type="s" name="account_id" direction="in"/>
@@ -54,6 +57,9 @@ INTERFACE_XML = f"""
     </method>
     <method name="NotifyAlarmsChanged"/>
     <signal name="Changed"/>
+    <signal name="SyncStateChanged">
+      <arg type="b" name="refreshing"/>
+    </signal>
     <signal name="AlarmsChanged"/>
     <signal name="Reminder">
       <arg type="s" name="uid"/>
@@ -158,6 +164,8 @@ class ClockensteinDaemon:
             events = self._get_events_for_range(since, until)
             self.logger.log(f"GetEvents({since}, {until}) -> {len(events)} event(s)")
             invocation.return_value(GLib.Variant("(a(sssbxxx))", (events,)))
+        elif method == "GetSyncState":
+            invocation.return_value(GLib.Variant("(b)", (self.refreshing,)))
         elif method == "NotifyChanged":
             self.logger.log("NotifyChanged()")
             self._reload_reminder_events()
@@ -315,6 +323,7 @@ class ClockensteinDaemon:
             self.logger.log("Queued refresh because one is already running")
             return
         self.refreshing = True
+        self._emit_sync_state()
         if refresh_google:
             self.google_refresh_due = False
         self._refresh_remote(refresh_google, refresh_caldav, target, date_range)
@@ -385,6 +394,15 @@ class ClockensteinDaemon:
         if self.refresh_queue:
             refresh_google, refresh_caldav, target, date_range = self.refresh_queue.pop(0)
             self._request_refresh(refresh_google, refresh_caldav, target, date_range)
+        else:
+            self._emit_sync_state()
+
+    def _emit_sync_state(self):
+        if self.connection:
+            self.connection.emit_signal(
+                None, BUS_PATH, BUS_INTERFACE, "SyncStateChanged",
+                GLib.Variant("(b)", (self.refreshing,)),
+            )
 
     def _emit_changed(self):
         if self.connection:

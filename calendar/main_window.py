@@ -61,6 +61,8 @@ class MainWindow(Gtk.Window):
         view_names = {"month": "Month", "week": "Week", "day": "Day"}
         self._active_view = view_names.get(saved_view, "Month")
         self._refreshing = False
+        self._refresh_pending = False
+        self._daemon_refreshing = False
         self._service_running = {BUS_NAME: False, AGENT_BUS_NAME: False}
         self.connect("destroy", self._save_window_size)
         self._build_ui()
@@ -78,8 +80,8 @@ class MainWindow(Gtk.Window):
         try:
             self._daemon_connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)
             self._daemon_subscription = self._daemon_connection.signal_subscribe(
-                BUS_NAME, BUS_INTERFACE, "Changed", BUS_PATH, None,
-                Gio.DBusSignalFlags.NONE, self._daemon_changed
+                BUS_NAME, BUS_INTERFACE, None, BUS_PATH, None,
+                Gio.DBusSignalFlags.NONE, self._daemon_signal
             )
             self.connect("destroy", self._unsubscribe_from_daemon)
         except GLib.Error:
@@ -104,13 +106,46 @@ class MainWindow(Gtk.Window):
         for watch in self._service_watches:
             Gio.bus_unwatch_name(watch)
 
-    def _service_appeared(self, _connection, name, _owner):
+    def _service_appeared(self, connection, name, owner):
         self._service_running[name] = True
+        if name == BUS_NAME:
+            connection.call(
+                owner, BUS_PATH, BUS_INTERFACE, "GetSyncState", None,
+                GLib.VariantType.new("(b)"), Gio.DBusCallFlags.NONE, -1,
+                None, self._sync_state_received,
+            )
         self._update_range_infobar()
 
     def _service_vanished(self, _connection, name):
         self._service_running[name] = False
+        if name == BUS_NAME:
+            self._daemon_refreshing = False
+            self._set_refreshing(False)
+            self._set_status("")
         self._update_range_infobar()
+
+    def _sync_state_received(self, connection, result):
+        try:
+            refreshing, = connection.call_finish(result).unpack()
+        except GLib.Error:
+            return
+        self._sync_state_changed(refreshing)
+
+    def _daemon_signal(self, connection, sender, path, interface, signal, parameters):
+        if signal == "Changed":
+            self._daemon_changed(connection, sender, path, interface, signal, parameters)
+        elif signal == "SyncStateChanged":
+            refreshing, = parameters.unpack()
+            self._sync_state_changed(refreshing)
+
+    def _sync_state_changed(self, refreshing):
+        was_refreshing = self._daemon_refreshing
+        self._daemon_refreshing = refreshing
+        self._update_refreshing()
+        if refreshing:
+            self._set_status(_("Synchronizing online calendars…"))
+        elif was_refreshing and not self._refresh_pending:
+            self._set_status(_("Synchronization finished"))
 
     def _get_service_warning(self):
         daemon_running = self._service_running[BUS_NAME]
@@ -1271,7 +1306,10 @@ class MainWindow(Gtk.Window):
     @run_idle
     def _sync_request_accepted(self):
         self._set_refreshing(False)
-        self._set_status(_("Synchronization requested"))
+        if self._daemon_refreshing:
+            self._set_status(_("Synchronizing online calendars…"))
+        else:
+            self._set_status(_("Synchronization finished"))
         self.store = CalendarManager(self.timezone)
         self._update_views()
 
@@ -1290,6 +1328,11 @@ class MainWindow(Gtk.Window):
         return False
 
     def _set_refreshing(self, active):
+        self._refresh_pending = active
+        self._update_refreshing()
+
+    def _update_refreshing(self):
+        active = self._refresh_pending or self._daemon_refreshing
         changed = active != self._refreshing
         self._refreshing = active
         self.new_button.set_sensitive(bool(self._get_editable_calendars()))
@@ -1300,8 +1343,10 @@ class MainWindow(Gtk.Window):
             self.spinner.stop()
             self.spinner.hide()
 
-        if active and changed:
+        if changed:
             self._update_views()
+            if self._calendar_dialog_box is not None:
+                self._fill_calendar_box(self._calendar_dialog_box)
 
     def _calendar_available(self, calendar):
         if calendar.get("provider") == "local":
