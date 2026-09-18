@@ -5,6 +5,7 @@ from typing import Optional
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Pango
+from xapp.threading import run_async, run_idle
 from xapp.util import l10n
 from clockenstein import DEFAULT_COLOR
 
@@ -106,6 +107,9 @@ class EventDialog(Gtk.Dialog):
         self.use_12_hour = _uses_12_hour_clock(time_format)
         self._populating = True
         self._adjusting_end = False
+        self._saving = False
+        self._saved = False
+        self._destroyed = False
         self.calendar_options = calendar_options
 
         self.set_default_size(420, -1)
@@ -124,6 +128,8 @@ class EventDialog(Gtk.Dialog):
         self._populate(default_date)
         self._populating = False
         self.connect("response", self._on_response)
+        self.connect("delete-event", self._on_delete_event)
+        self.connect("destroy", self._on_destroy)
         if not editable:
             self._set_form_sensitive(False)
             if (self.event.get("provider") == "google"
@@ -152,6 +158,7 @@ class EventDialog(Gtk.Dialog):
         box.set_margin_end(16)
 
         grid = Gtk.Grid()
+        self.form_grid = grid
         grid.set_column_spacing(12)
         grid.set_row_spacing(8)
         box.pack_start(grid, True, True, 0)
@@ -344,9 +351,18 @@ class EventDialog(Gtk.Dialog):
             widget.set_sensitive(sensitive)
 
     def _on_response(self, _dialog, response):
-        if response == Gtk.ResponseType.OK:
+        if self._saving:
+            _dialog.stop_emission_by_name("response")
+        elif response == Gtk.ResponseType.OK and not self._saved:
             if not self._save():
                 _dialog.stop_emission_by_name("response")
+
+    def _on_delete_event(self, _dialog, _event):
+        # Closing the dialog cannot cancel a request already sent to the server.
+        return self._saving
+
+    def _on_destroy(self, _dialog):
+        self._destroyed = True
 
     def _save(self) -> bool:
         summary = self.title_entry.get_text().strip() or _("Untitled")
@@ -388,18 +404,60 @@ class EventDialog(Gtk.Dialog):
                      "provider": calendar.get("provider", "local"),
                      "account_id": calendar.get("account_id", "local")})
 
+        if data["provider"] != "local":
+            self._set_saving(True)
+            self.status_label.set_text(_("Saving…"))
+            self._save_remote(data)
+            return False
+
         try:
-            if self.is_new:
-                self.store.create_event(data)
-            else:
-                self.store.update_event(self.event["uid"], data)
+            self._write_event(data)
         except Exception as ex:
             self.status_label.set_text(_("Error: %s") % ex)
             return False
 
         return True
 
+    def _write_event(self, data):
+        if self.is_new:
+            self.store.create_event(data)
+        else:
+            self.store.update_event(self.event["uid"], data)
+
+    def _set_saving(self, saving):
+        self._saving = saving
+        self.form_grid.set_sensitive(not saving)
+        self.get_action_area().set_sensitive(not saving)
+        self.set_deletable(not saving)
+        style = self.status_label.get_style_context()
+        if saving:
+            style.remove_class("error")
+        else:
+            style.add_class("error")
+
+    @run_async
+    def _save_remote(self, data):
+        try:
+            self._write_event(data)
+        except Exception as exc:
+            self._remote_save_finished(str(exc))
+        else:
+            self._remote_save_finished(None)
+
+    @run_idle
+    def _remote_save_finished(self, error):
+        if self._destroyed:
+            return
+        self._set_saving(False)
+        if error is not None:
+            self.status_label.set_text(_("Error: %s") % error)
+            return
+        self._saved = True
+        self.response(Gtk.ResponseType.OK)
+
     def _on_delete(self, _btn):
+        if self._saving:
+            return
         dlg = Gtk.MessageDialog(
             transient_for=self,
             message_type=Gtk.MessageType.QUESTION,
