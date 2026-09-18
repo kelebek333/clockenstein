@@ -2,7 +2,6 @@ import datetime
 import base64
 import hashlib
 import json
-import httplib2
 import zlib
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -13,6 +12,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from xapp.util import l10n
 from backends.remote import RemoteBackend
+from clockenstein.networking import GoogleHttp
 from clockenstein.sync import SyncDownload, write_private_json
 
 _ = l10n("clockenstein")
@@ -388,8 +388,7 @@ class GoogleBackend(RemoteBackend):
 
     @staticmethod
     def _build_service(credentials):
-        """Build an API client whose network calls cannot hang the UI forever."""
-        http = AuthorizedHttp(credentials, http=httplib2.Http(timeout=20))
+        http = AuthorizedHttp(credentials, http=GoogleHttp())
         return build("calendar", "v3", http=http, cache_discovery=False)
 
     @staticmethod

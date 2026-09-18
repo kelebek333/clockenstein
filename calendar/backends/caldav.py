@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from icalendar import Calendar, Event
 from xapp.util import l10n
 from backends.remote import RemoteBackend
+from clockenstein.networking import CalDAVAdapter
 from clockenstein.sync import SyncDownload
 
 _ = l10n("clockenstein")
@@ -237,6 +238,9 @@ class CalDAVBackend(RemoteBackend):
         # its timeout keyword. Its requests still use the timeout attribute.
         client = caldav.DAVClient(url=url, username=username, password=password)
         client.timeout = cls.REQUEST_TIMEOUT_SECONDS
+        adapter = CalDAVAdapter()
+        client.session.mount("http://", adapter)
+        client.session.mount("https://", adapter)
         return client, client.principal().calendars()
 
     @classmethod
