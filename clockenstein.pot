@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 12:16+0100\n"
+"POT-Creation-Date: 2026-09-18 11:46+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,641 +18,816 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: data/org.x.clockenstein.Calendar.desktop.in:3 calendar/event_dialog.py:157
-#: calendar/main.py:75 calendar/main_window.py:25 calendar/main_window.py:82
-#: calendar/store.py:77 calendar/store.py:102 calendar/backends/caldav.py:102
-#: calendar/backends/caldav.py:153 calendar/backends/caldav.py:339
-#: calendar/backends/caldav.py:341
+#: data/org.x.clockenstein.Calendar.desktop.in:2 calendar/calendar_app.py:74
+#: calendar/event_dialog.py:178 calendar/event_dialog.py:185
+#: calendar/main_window.py:35 calendar/main_window.py:193 calendar/store.py:60
+#: calendar/store.py:72 calendar/backends/caldav.py:281
+#: calendar/backends/caldav.py:283
 msgid "Calendar"
 msgstr ""
 
-#: data/org.x.clockenstein.Calendar.desktop.in:4
+#: data/org.x.clockenstein.Calendar.desktop.in:3
 msgid "Manage your events and appointments"
 msgstr ""
 
-#: data/org.x.clockenstein.Calendar.desktop.in:10
+#: data/org.x.clockenstein.Calendar.desktop.in:9
 msgid "calendar;event;appointment;Google;CalDAV;Nextcloud;"
 msgstr ""
 
-#: calendar/event_dialog.py:76
-msgid "New Event"
+#: data/org.x.clockenstein.Clocks.desktop.in:2 clocks/clocks_app.py:116
+#: clocks/clocks_app.py:720
+msgid "Clocks"
 msgstr ""
 
-#: calendar/event_dialog.py:76
-msgid "Event Details"
+#: data/org.x.clockenstein.Clocks.desktop.in:3
+msgid "Set alarms"
 msgstr ""
 
-#: calendar/event_dialog.py:99 calendar/main_window.py:657
-#: calendar/main_window.py:770 calendar/main_window.py:806
-#: calendar/main_window.py:873
-msgid "Cancel"
+#: data/org.x.clockenstein.Clocks.desktop.in:9
+msgid "clock;alarm;wake;"
+msgstr ""
+
+#: calendar/event_dialog.py:79 clocks/clocks_app.py:418
+msgid "AM"
+msgstr ""
+
+#: calendar/event_dialog.py:80 clocks/clocks_app.py:419
+msgid "PM"
 msgstr ""
 
 #: calendar/event_dialog.py:99
+msgid "New Event"
+msgstr ""
+
+#: calendar/event_dialog.py:99
+msgid "Event Details"
+msgstr ""
+
+#: calendar/event_dialog.py:116 calendar/main_window.py:812
+#: calendar/main_window.py:930 calendar/main_window.py:966
+#: calendar/main_window.py:1032 clocks/clocks_app.py:361
+#: clocks/clocks_app.py:499
+msgid "Cancel"
+msgstr ""
+
+#: calendar/event_dialog.py:116 calendar/preferences.py:16
 msgid "Close"
 msgstr ""
 
-#: calendar/event_dialog.py:101
+#: calendar/event_dialog.py:118 clocks/clocks_app.py:363
 msgid "Delete"
 msgstr ""
 
-#: calendar/event_dialog.py:105 calendar/main_window.py:657
+#: calendar/event_dialog.py:123 calendar/main_window.py:812
+#: clocks/clocks_app.py:365
 msgid "Save"
 msgstr ""
 
-#: calendar/event_dialog.py:119
+#: calendar/event_dialog.py:139
 msgid "Birthday"
 msgstr ""
 
-#: calendar/event_dialog.py:120
+#: calendar/event_dialog.py:140
 msgid "Focus time"
 msgstr ""
 
-#: calendar/event_dialog.py:121
+#: calendar/event_dialog.py:141
 msgid "From Gmail"
 msgstr ""
 
-#: calendar/event_dialog.py:122
+#: calendar/event_dialog.py:142
 msgid "Out of office"
 msgstr ""
 
-#: calendar/event_dialog.py:123
+#: calendar/event_dialog.py:143
 msgid "Working location"
 msgstr ""
 
-#: calendar/event_dialog.py:128
+#: calendar/event_dialog.py:148
 #, python-format
 msgid "This type of event (%s) cannot be edited."
 msgstr ""
 
-#: calendar/event_dialog.py:151
+#: calendar/event_dialog.py:172
 msgid "Title"
 msgstr ""
 
-#: calendar/event_dialog.py:161 calendar/main_window.py:349
-#: calendar/main_window.py:638
+#: calendar/event_dialog.py:182 calendar/main_window.py:507
+#: calendar/main_window.py:793
 msgid "Local"
 msgstr ""
 
-#: calendar/event_dialog.py:185 calendar/views/day_view.py:48
-#: calendar/views/day_view.py:300 calendar/views/week_view.py:59
-#: calendar/views/week_view.py:70
+#: calendar/event_dialog.py:206 calendar/views/day_view.py:53
+#: calendar/views/day_view.py:329 calendar/views/week_view.py:61
+#: calendar/views/week_view.py:72
 msgid "All day"
 msgstr ""
 
-#: calendar/event_dialog.py:191
+#: calendar/event_dialog.py:212
 msgid "Start"
 msgstr ""
 
-#: calendar/event_dialog.py:199
+#: calendar/event_dialog.py:222
 msgid "End"
 msgstr ""
 
-#: calendar/event_dialog.py:214
+#: calendar/event_dialog.py:243
 msgid "Location"
 msgstr ""
 
-#: calendar/event_dialog.py:217
+#: calendar/event_dialog.py:246
 msgid "Optional"
 msgstr ""
 
-#: calendar/event_dialog.py:220
+#: calendar/event_dialog.py:249
 msgid "Notes"
 msgstr ""
 
-#: calendar/event_dialog.py:318 calendar/event_dialog.py:373
-#: calendar/main_window.py:329 calendar/backends/google.py:608
-#: calendar/views/day_view.py:299 calendar/views/month_view.py:267
-#: calendar/views/month_view.py:286 calendar/views/week_view.py:310
+#: calendar/event_dialog.py:368 calendar/event_dialog.py:465
+#: calendar/main_window.py:482 calendar/backends/google.py:480
+#: calendar/views/day_view.py:328 calendar/views/month_view.py:183
+#: calendar/views/month_view.py:329 calendar/views/month_view.py:344
+#: calendar/views/week_view.py:337
 msgid "Untitled"
 msgstr ""
 
-#: calendar/event_dialog.py:349 calendar/backends/google.py:410
+#: calendar/event_dialog.py:399 calendar/backends/google.py:291
 #, python-format
 msgid "The event dates are outside the sync range for %s."
 msgstr ""
 
-#: calendar/event_dialog.py:350
+#: calendar/event_dialog.py:400
 msgid "this calendar"
 msgstr ""
 
-#: calendar/event_dialog.py:363 calendar/event_dialog.py:384
-#: calendar/main_window.py:560
+#: calendar/event_dialog.py:409
+msgid "Saving…"
+msgstr ""
+
+#: calendar/event_dialog.py:416 calendar/event_dialog.py:453
+#: calendar/event_dialog.py:476 calendar/main_window.py:715
 #, python-format
 msgid "Error: %s"
 msgstr ""
 
-#: calendar/event_dialog.py:373
+#: calendar/event_dialog.py:465
 #, python-format
 msgid "Delete '%s'?"
 msgstr ""
 
-#: calendar/event_dialog.py:375
+#: calendar/event_dialog.py:467
 msgid "This event will be permanently deleted."
 msgstr ""
 
-#: calendar/formatting.py:8
-msgid "MON"
+#: calendar/main_window.py:146 calendar/main_window.py:1310
+msgid "Synchronizing online calendars…"
 msgstr ""
 
-#: calendar/formatting.py:8
-msgid "TUE"
+#: calendar/main_window.py:148 calendar/main_window.py:1312
+msgid "Synchronization finished"
 msgstr ""
 
-#: calendar/formatting.py:8
-msgid "WED"
+#: calendar/main_window.py:154 clocks/clocks_app.py:220
+msgid "The daemon is not running."
 msgstr ""
 
-#: calendar/formatting.py:8
-msgid "THU"
+#: calendar/main_window.py:155
+msgid "Synchronization and reminders may be unavailable."
 msgstr ""
 
-#: calendar/formatting.py:8
-msgid "FRI"
+#: calendar/main_window.py:158 clocks/clocks_app.py:222
+msgid "The notification agent is not running."
 msgstr ""
 
-#: calendar/formatting.py:8
-msgid "SAT"
+#: calendar/main_window.py:159
+msgid "Reminders may be unavailable."
 msgstr ""
 
-#: calendar/formatting.py:8
-msgid "SUN"
-msgstr ""
-
-#: calendar/main.py:50
-msgid "The --date option requires a date.\n"
-msgstr ""
-
-#: calendar/main.py:60
-#, python-format
-msgid "Invalid date: %s\n"
-msgstr ""
-
-#: calendar/main_window.py:86
-msgid "Calendars…"
-msgstr ""
-
-#: calendar/main_window.py:90
-msgid "About"
-msgstr ""
-
-#: calendar/main_window.py:96
-msgid "Main menu"
-msgstr ""
-
-#: calendar/main_window.py:106 calendar/main_window.py:294
-msgid "Today"
-msgstr ""
-
-#: calendar/main_window.py:116
-msgid "Month"
-msgstr ""
-
-#: calendar/main_window.py:116
-msgid "Week"
-msgstr ""
-
-#: calendar/main_window.py:117
-msgid "Day"
-msgstr ""
-
-#: calendar/main_window.py:125
-msgid "New event (Ctrl+N)"
-msgstr ""
-
-#: calendar/main_window.py:180 calendar/main_window.py:599
+#: calendar/main_window.py:197 calendar/main_window.py:302
+#: calendar/main_window.py:754
 msgid "Calendars"
 msgstr ""
 
-#: calendar/main_window.py:211
+#: calendar/main_window.py:200 calendar/preferences.py:15
+msgid "Preferences"
+msgstr ""
+
+#: calendar/main_window.py:204
+msgid "About"
+msgstr ""
+
+#: calendar/main_window.py:210
+msgid "Main menu"
+msgstr ""
+
+#: calendar/main_window.py:220 calendar/main_window.py:447
+#: clocks/clocks_app.py:687
+msgid "Today"
+msgstr ""
+
+#: calendar/main_window.py:230 calendar/widgets/mini_calendar.py:130
+msgid "Month"
+msgstr ""
+
+#: calendar/main_window.py:230
+msgid "Week"
+msgstr ""
+
+#: calendar/main_window.py:231
+msgid "Day"
+msgstr ""
+
+#: calendar/main_window.py:239
+msgid "New event (Ctrl+N)"
+msgstr ""
+
+#: calendar/main_window.py:358
 msgid "A calendar application for Linux desktops"
 msgstr ""
 
-#: calendar/main_window.py:235 calendar/main_window.py:1133
+#: calendar/main_window.py:382 calendar/main_window.py:1325
 msgid "Some online calendars are disconnected (read-only)."
 msgstr ""
 
-#: calendar/main_window.py:268
+#: calendar/main_window.py:418
 #, python-format
 msgid "This date is outside the sync range for: %s. Events may be missing."
 msgstr ""
 
-#: calendar/main_window.py:295
+#: calendar/main_window.py:448 clocks/clocks_app.py:689
 msgid "Tomorrow"
 msgstr ""
 
-#: calendar/main_window.py:296
+#: calendar/main_window.py:449
 msgid "Coming Up"
 msgstr ""
 
-#: calendar/main_window.py:306
+#: calendar/main_window.py:459
 msgid "No upcoming events"
 msgstr ""
 
-#: calendar/main_window.py:362
+#: calendar/main_window.py:520
 msgid "Online"
 msgstr ""
 
-#: calendar/main_window.py:362
+#: calendar/main_window.py:520
 msgid "Offline, read only"
 msgstr ""
 
-#: calendar/main_window.py:363
+#: calendar/main_window.py:521
 msgid "Sync every 2 hours"
 msgstr ""
 
-#: calendar/main_window.py:364
+#: calendar/main_window.py:522
 msgid "Sync every 15 minutes"
 msgstr ""
 
-#: calendar/main_window.py:380
+#: calendar/main_window.py:536
+msgid "Sync range"
+msgstr ""
+
+#: calendar/main_window.py:536
+msgid "Status"
+msgstr ""
+
+#: calendar/main_window.py:537
+msgid "Reminders"
+msgstr ""
+
+#: calendar/main_window.py:537
+msgid "Visible"
+msgstr ""
+
+#: calendar/main_window.py:537
+msgid "Actions"
+msgstr ""
+
+#: calendar/main_window.py:564
 #, python-format
 msgid "Disconnect %s"
 msgstr ""
 
-#: calendar/main_window.py:391
+#: calendar/main_window.py:572
+msgid "Local calendars"
+msgstr ""
+
+#: calendar/main_window.py:582
 msgid "My Calendars"
 msgstr ""
 
-#: calendar/main_window.py:391
+#: calendar/main_window.py:583
 msgid "Other Calendars"
 msgstr ""
 
-#: calendar/main_window.py:398
-msgid "Status"
-msgstr ""
-
-#: calendar/main_window.py:399 calendar/main_window.py:503
-msgid "Reminders"
-msgstr ""
-
-#: calendar/main_window.py:400
-msgid "Visible"
-msgstr ""
-
-#: calendar/main_window.py:405
-msgid "Sync range"
-msgstr ""
-
-#: calendar/main_window.py:442 calendar/main_window.py:498
+#: calendar/main_window.py:608
 msgid "Show this calendar"
 msgstr ""
 
-#: calendar/main_window.py:456
+#: calendar/main_window.py:622
 msgid "Already synchronized less than 5 minutes ago"
 msgstr ""
 
-#: calendar/main_window.py:464 calendar/main_window.py:525
-#: calendar/main_window.py:765
+#: calendar/main_window.py:630 calendar/main_window.py:680
+#: calendar/main_window.py:925
 msgid "Refresh this calendar"
 msgstr ""
 
-#: calendar/main_window.py:509
+#: calendar/main_window.py:652 clocks/clocks_app.py:317
+#: clocks/clocks_app.py:358
 msgid "Edit"
 msgstr ""
 
-#: calendar/main_window.py:515 calendar/main_window.py:695
+#: calendar/main_window.py:660 calendar/main_window.py:849
 msgid "Remove"
 msgstr ""
 
-#: calendar/main_window.py:550 calendar/main_window.py:554
+#: calendar/main_window.py:705 calendar/main_window.py:709
 msgid "2 years ahead"
 msgstr ""
 
-#: calendar/main_window.py:551
+#: calendar/main_window.py:706
 msgid "1 year ahead"
 msgstr ""
 
-#: calendar/main_window.py:552
+#: calendar/main_window.py:707
 msgid "3 months ahead"
 msgstr ""
 
-#: calendar/main_window.py:553
+#: calendar/main_window.py:708
 msgid "Too many events"
 msgstr ""
 
-#: calendar/main_window.py:562
+#: calendar/main_window.py:717
 msgid "Not synchronized"
 msgstr ""
 
-#: calendar/main_window.py:567
+#: calendar/main_window.py:722
 msgid "just now"
 msgstr ""
 
-#: calendar/main_window.py:570
+#: calendar/main_window.py:725
 msgid "1 minute ago"
 msgstr ""
 
-#: calendar/main_window.py:571
+#: calendar/main_window.py:726
 #, python-format
 msgid "%d minutes ago"
 msgstr ""
 
-#: calendar/main_window.py:574
+#: calendar/main_window.py:729
 msgid "1 hour ago"
 msgstr ""
 
-#: calendar/main_window.py:575
+#: calendar/main_window.py:730
 #, python-format
 msgid "%d hours ago"
 msgstr ""
 
-#: calendar/main_window.py:578
+#: calendar/main_window.py:733
 msgid "1 day ago"
 msgstr ""
 
-#: calendar/main_window.py:579
+#: calendar/main_window.py:734
 #, python-format
 msgid "%d days ago"
 msgstr ""
 
-#: calendar/main_window.py:580
+#: calendar/main_window.py:735
 #, python-format
 msgid "Last sync: %s"
 msgstr ""
 
-#: calendar/main_window.py:581
+#: calendar/main_window.py:736
 msgid "Not synced yet"
 msgstr ""
 
-#: calendar/main_window.py:600
+#: calendar/main_window.py:755
 msgid "Add a New Calendar…"
 msgstr ""
 
-#: calendar/main_window.py:640
+#: calendar/main_window.py:795
 msgid "CalDAV (Nextcloud, Memotoo, etc.)"
 msgstr ""
 
-#: calendar/main_window.py:656
+#: calendar/main_window.py:811
 msgid "Edit Calendar"
 msgstr ""
 
-#: calendar/main_window.py:667 calendar/main_window.py:779
+#: calendar/main_window.py:822 calendar/main_window.py:939
+#: clocks/clocks_app.py:382
 msgid "Name"
 msgstr ""
 
-#: calendar/main_window.py:669 calendar/main_window.py:781
+#: calendar/main_window.py:824 calendar/main_window.py:941
 msgid "Color"
 msgstr ""
 
-#: calendar/main_window.py:686 calendar/store.py:109
+#: calendar/main_window.py:840 calendar/store.py:77
 msgid "At least one local calendar is required"
 msgstr ""
 
-#: calendar/main_window.py:693
+#: calendar/main_window.py:847
 #, python-format
 msgid "Remove %s?"
 msgstr ""
 
-#: calendar/main_window.py:696
+#: calendar/main_window.py:850
 msgid "All the events from this calendar will be permanently removed."
 msgstr ""
 
-#: calendar/main_window.py:726
-msgid "Remind me about events in this calendar"
-msgstr ""
-
-#: calendar/main_window.py:743
-msgid "Refresh requested"
-msgstr ""
-
-#: calendar/main_window.py:744
+#: calendar/main_window.py:869 calendar/main_window.py:904
 #, python-format
 msgid "Refresh requested for %s…"
 msgstr ""
 
-#: calendar/main_window.py:766
+#: calendar/main_window.py:886
+msgid "Remind me about events in this calendar"
+msgstr ""
+
+#: calendar/main_window.py:903
+msgid "Refresh requested"
+msgstr ""
+
+#: calendar/main_window.py:926
 #, python-format
 msgid "Could not request refresh: %s"
 msgstr ""
 
-#: calendar/main_window.py:769
+#: calendar/main_window.py:929
 msgid "New Calendar"
 msgstr ""
 
-#: calendar/main_window.py:770
+#: calendar/main_window.py:930
 msgid "Create"
 msgstr ""
 
-#: calendar/main_window.py:800
+#: calendar/main_window.py:960
 msgid "No Google accounts were found in Online Accounts."
 msgstr ""
 
-#: calendar/main_window.py:805
+#: calendar/main_window.py:965
 msgid "Google Account"
 msgstr ""
 
-#: calendar/main_window.py:807 calendar/main_window.py:873
+#: calendar/main_window.py:967 calendar/main_window.py:1032
 msgid "Connect"
 msgstr ""
 
-#: calendar/main_window.py:812
+#: calendar/main_window.py:972
 msgid "Choose an account"
 msgstr ""
 
-#: calendar/main_window.py:826 calendar/main_window.py:830
-#: calendar/main_window.py:892
+#: calendar/main_window.py:986 calendar/main_window.py:990
+#: calendar/main_window.py:1051
 msgid "Connecting…"
 msgstr ""
 
-#: calendar/main_window.py:842 calendar/main_window.py:901
+#: calendar/main_window.py:1002 calendar/main_window.py:1060
 msgid "Requesting initial synchronization…"
 msgstr ""
 
-#: calendar/main_window.py:859
+#: calendar/main_window.py:1019
 msgid "Could not connect the Google account"
 msgstr ""
 
-#: calendar/main_window.py:882
+#: calendar/main_window.py:1041
 msgid "Server URL"
 msgstr ""
 
-#: calendar/main_window.py:882
+#: calendar/main_window.py:1041
 msgid "Username"
 msgstr ""
 
-#: calendar/main_window.py:882
+#: calendar/main_window.py:1041
 msgid "Password"
 msgstr ""
 
-#: calendar/main_window.py:912
+#: calendar/main_window.py:1071
 #, python-format
 msgid "Disconnect %s?"
 msgstr ""
 
-#: calendar/main_window.py:915
+#: calendar/main_window.py:1074
 msgid ""
 "This online calendar will be disconnected and removed from the application."
 msgstr ""
 
-#: calendar/main_window.py:1081
+#: calendar/main_window.py:1272
 msgid "Connecting to online calendars…"
 msgstr ""
 
-#: calendar/main_window.py:1118
-msgid "Synchronization requested"
+#: calendar/preferences.py:24
+msgid "First day of the week"
 msgstr ""
 
-#: calendar/store.py:36 calendar/store.py:50
+#: calendar/preferences.py:29 calendar/preferences.py:45
+msgid "Use locale default"
+msgstr ""
+
+#: calendar/preferences.py:40
+msgid "Time format"
+msgstr ""
+
+#: calendar/preferences.py:46
+msgid "12-hour clock"
+msgstr ""
+
+#: calendar/preferences.py:47
+msgid "24-hour clock"
+msgstr ""
+
+#: calendar/preferences.py:54
+msgid "Show week numbers"
+msgstr ""
+
+#: calendar/store.py:50
 msgid "Personal"
 msgstr ""
 
-#: calendar/store.py:101 calendar/store.py:113
-#, python-format
-msgid "Unknown calendar %s"
-msgstr ""
-
-#: calendar/store.py:191
+#: calendar/store.py:110
 #, python-format
 msgid "Unknown event %s"
 msgstr ""
 
-#: calendar/store.py:216
-#, python-format
-msgid "Could not read %s: %s"
-msgstr ""
-
-#: calendar/backends/caldav.py:64
+#: calendar/backends/caldav.py:54
 msgid "A username and password are required"
 msgstr ""
 
-#: calendar/backends/caldav.py:66
+#: calendar/backends/caldav.py:56
 msgid "Contacting CalDAV server…"
 msgstr ""
 
-#: calendar/backends/caldav.py:171 calendar/backends/caldav.py:271
+#: calendar/backends/caldav.py:91 calendar/backends/caldav.py:199
 msgid "Password not found in the keyring"
 msgstr ""
 
-#: calendar/backends/caldav.py:233
+#: calendar/backends/caldav.py:161
 msgid "The event has no CalDAV resource URL"
 msgstr ""
 
-#: calendar/backends/caldav.py:282
+#: calendar/backends/caldav.py:210
 msgid "This CalDAV account is offline. It is now read-only."
 msgstr ""
 
-#: calendar/backends/caldav.py:317
+#: calendar/backends/caldav.py:259
 #, python-format
 msgid "Calendar CalDAV password for %s"
 msgstr ""
 
-#: calendar/backends/caldav.py:319
+#: calendar/backends/caldav.py:261
 msgid "Could not save the password in the keyring"
 msgstr ""
 
-#: calendar/backends/caldav.py:354
+#: calendar/backends/caldav.py:292
 msgid "A server URL is required"
 msgstr ""
 
-#: calendar/backends/caldav.py:358
-msgid "CalDAV connections must use HTTPS"
+#: calendar/backends/caldav.py:296
+msgid "CalDAV server URLs must use HTTP or HTTPS"
 msgstr ""
 
-#: calendar/backends/google.py:65
+#: calendar/backends/google.py:66
 msgid "Waiting for Google authorization…"
 msgstr ""
 
-#: calendar/backends/google.py:72
+#: calendar/backends/google.py:73
 msgid "Authorization received • Contacting Google Calendar…"
 msgstr ""
 
-#: calendar/backends/google.py:75 calendar/backends/google.py:125
+#: calendar/backends/google.py:76 calendar/backends/google.py:119
 msgid "Loading your Google calendars…"
 msgstr ""
 
-#: calendar/backends/google.py:79 calendar/backends/google.py:129
+#: calendar/backends/google.py:80 calendar/backends/google.py:123
 msgid "Google did not return a primary calendar"
 msgstr ""
 
-#: calendar/backends/google.py:122
+#: calendar/backends/google.py:116
 msgid "Requesting authorization from Online Accounts…"
 msgstr ""
 
-#: calendar/backends/google.py:258
-msgid "not connected"
-msgstr ""
-
-#: calendar/backends/google.py:386 calendar/backends/google.py:397
+#: calendar/backends/google.py:263 calendar/backends/google.py:274
 msgid "This Google account is offline."
 msgstr ""
 
-#: calendar/backends/google.py:406
+#: calendar/backends/google.py:287
 msgid "Google calendar not found."
 msgstr ""
 
-#: calendar/backends/google.py:433
+#: calendar/backends/google.py:319
 msgid "authorization expired"
 msgstr ""
 
-#: calendar/backends/google.py:447
+#: calendar/backends/google.py:333
 msgid "The gir1.2-goa-1.0 package is missing"
 msgstr ""
 
-#: calendar/backends/google.py:458
+#: calendar/backends/google.py:344
 #, python-format
 msgid "Could not contact Online Accounts: %s"
 msgstr ""
 
-#: calendar/backends/google.py:465
+#: calendar/backends/google.py:351
 msgid "The selected Online Account is unavailable"
 msgstr ""
 
-#: calendar/backends/google.py:477
+#: calendar/backends/google.py:363
 msgid "Online Accounts returned no access token"
 msgstr ""
 
-#: calendar/backends/google.py:482
+#: calendar/backends/google.py:368
 #, python-format
 msgid "Could not obtain Google authorization: %s"
 msgstr ""
 
-#: calendar/views/month_view.py:193
+#: calendar/views/month_view.py:263
 #, python-format
 msgid "+%d more"
 msgstr ""
 
-#: agent/main.py:20
-msgid "Calendar Event"
+#: calendar/widgets/mini_calendar.py:136
+msgid "Year"
 msgstr ""
 
-#: agent/main.py:114
-msgid "Mute"
-msgstr ""
+#: clocks/clocks_app.py:108
+#, python-format
+msgid "%d hour"
+msgid_plural "%d hours"
+msgstr[0] ""
+msgstr[1] ""
 
-#: agent/main.py:193
-msgid "Open Calendar"
-msgstr ""
-
-#: agent/main.py:203
-msgid "Dismiss"
-msgstr ""
-
-#: agent/main.py:207
-msgid "Snooze"
-msgstr ""
-
-#: agent/main.py:215
+#: clocks/clocks_app.py:110 agent/agent.py:181
 #, python-format
 msgid "%d minute"
 msgid_plural "%d minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: agent/main.py:535
+#: clocks/clocks_app.py:111
+#, python-format
+msgid "Alarm in %s"
+msgstr ""
+
+#: clocks/clocks_app.py:131
+msgid "Alarms"
+msgstr ""
+
+#: clocks/clocks_app.py:133
+msgid "Add"
+msgstr ""
+
+#: clocks/clocks_app.py:150
+msgid "No alarms are set"
+msgstr ""
+
+#: clocks/clocks_app.py:226
+msgid "Alarms will not ring."
+msgstr ""
+
+#: clocks/clocks_app.py:249
+#, python-format
+msgid "Could not load alarms: %s"
+msgstr ""
+
+#: clocks/clocks_app.py:297 agent/agent.py:98 agent/agent.py:192
+msgid "Alarm"
+msgstr ""
+
+#: clocks/clocks_app.py:333
+msgid "Could not update alarm"
+msgstr ""
+
+#: clocks/clocks_app.py:358
+msgid "New Alarm"
+msgstr ""
+
+#: clocks/clocks_app.py:408
+msgid "Time"
+msgstr ""
+
+#: clocks/clocks_app.py:448 clocks/clocks_app.py:558
+#, python-format
+msgid "Every %s"
+msgstr ""
+
+#: clocks/clocks_app.py:459
+msgid "Choose a date"
+msgstr ""
+
+#: clocks/clocks_app.py:470
+msgid "Clear date"
+msgstr ""
+
+#: clocks/clocks_app.py:488
+msgid "Audio files"
+msgstr ""
+
+#: clocks/clocks_app.py:496
+msgid "Choose a sound"
+msgstr ""
+
+#: clocks/clocks_app.py:500
+msgid "Select"
+msgstr ""
+
+#: clocks/clocks_app.py:512
+msgid "Play selected sound"
+msgstr ""
+
+#: clocks/clocks_app.py:518
+msgid "Seconds between sounds"
+msgstr ""
+
+#: clocks/clocks_app.py:519
+msgid "seconds"
+msgstr ""
+
+#: clocks/clocks_app.py:537
+msgid "Sound"
+msgstr ""
+
+#: clocks/clocks_app.py:556 clocks/clocks_app.py:660
+msgid "Every day"
+msgstr ""
+
+#: clocks/clocks_app.py:639
+msgid "Could not delete alarm"
+msgstr ""
+
+#: clocks/clocks_app.py:640
+msgid "Could not save alarm"
+msgstr ""
+
+#: clocks/clocks_app.py:707
+msgid "Could not open alarm database"
+msgstr ""
+
+#: agent/agent.py:25
+msgid "Calendar Event"
+msgstr ""
+
+#: agent/agent.py:123
+msgid "Mute"
+msgstr ""
+
+#: agent/agent.py:172
+msgid "Snooze"
+msgstr ""
+
+#: agent/agent.py:212
+msgid "Open Clocks"
+msgstr ""
+
+#: agent/agent.py:215 agent/agent.py:285
+msgid "Dismiss"
+msgstr ""
+
+#: agent/agent.py:279
+msgid "Open Calendar"
+msgstr ""
+
+#: agent/agent.py:548
 #, python-format
 msgid "Starts in %d minute"
 msgid_plural "Starts in %d minutes"
 msgstr[0] ""
 msgstr[1] ""
 
-#: agent/main.py:538
+#: agent/agent.py:551
 msgid "Starts now"
 msgstr ""
 
-#: agent/main.py:541
+#: agent/agent.py:554
 #, python-format
 msgid "This event started %d minute ago"
 msgid_plural "This event started %d minutes ago"
 msgstr[0] ""
 msgstr[1] ""
+
+#: clockenstein/formatting.py:11
+msgid "MON"
+msgstr ""
+
+#: clockenstein/formatting.py:11
+msgid "TUE"
+msgstr ""
+
+#: clockenstein/formatting.py:11
+msgid "WED"
+msgstr ""
+
+#: clockenstein/formatting.py:11
+msgid "THU"
+msgstr ""
+
+#: clockenstein/formatting.py:11
+msgid "FRI"
+msgstr ""
+
+#: clockenstein/formatting.py:11
+msgid "SAT"
+msgstr ""
+
+#: clockenstein/formatting.py:11
+msgid "SUN"
+msgstr ""

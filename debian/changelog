@@ -1,3 +1,83 @@
+clockenstein (2.0.0) adrien; urgency=medium
+
+  * Take timezones into consideration
+  * minical: Adjust week-number position
+  * Add a preference dialog with first-day-of-the-week setting
+  * Add a preference for time format
+  * event_dialog: Adapt widgets to 12h formats
+  * month_view: Add a marker for 1st of month cells
+  * month_view: Fix scroll navigation
+  * infobar: Warn about missing agent/daemon
+  * daemon: Fix deprecation
+  * day_view: Format full date properly
+  * daemon: Fix missing self in _event_tuple()
+  * calendars: Align UI components
+  * l10n: Update POT
+  * clocks: Start implementing alarms
+  * clocks: Add a next-alarm label and sort alarms by upcoming time
+  * clocks: Add sound interval
+  * agent: Improve UI for alarms
+  * clocks: Show past alarms differently
+  * clocks: Add infobar for missing agent/daemon
+  * test: Add test-dummy-events
+  * Simplify code and packaging
+  * Fix datadir
+  * event_dialog: Fix delete confirmation workflow
+  * l10n: Use ngettext for time info
+  * caldav: Multiple fixes
+  * month_view: Add tooltip for +N more items
+  * Update README
+  * wayland: Remove X11 specific code in agent
+  * Remove unused code
+  * test-dummy-events: Fixes
+  * agent: Simplify code
+  * refactor: Factorize drawing code
+  * refactor: Factorize default color
+  * formatting: Use Babel for locale weekday
+  * refactor: Name dialog response codes
+  * refactor: Use standard import
+  * Improve logging
+  * calendar: Only save window dimensions when window closes
+  * performance: Reuse Pango layout when fitting titles
+  * performance: Watch service names instead of polling
+  * l10n: Unify some msgids
+  * performance: Reuse event styles and avoid unchanged widget rebuilds
+  * performance: Read calendar events once per UI refresh
+  * google: Don't request deleted events
+  * calendar: Fix missing or shortened events without an explicit end
+  * daemon: Log and finalize refresh failures
+  * alarms: Choose due occurrences chronologically
+  * alarms: Honor persisted firing history
+  * calendar: Improve keyboard navigation
+  * timezone: Don't fail to start when the system timezone has no usable name
+  * views: Don't reset the scroll position when events are updated
+  * views: Don't treat event clicks as clicks on the day underneath
+  * tests: Cover calendar and alarm audit regressions
+  * alarms: Address DST changes
+  * Switch to XSI
+  * mini-calendar: Number weeks according to their Tuesday date
+  * caldav: Make recurring events read-only
+  * Update README
+  * calendar: Prevent CRUD on hidden calendars
+  * calendar: Empty/Refresh remote calendars when hidden/shown
+  * store: On deletion, update calendar list first
+  * store: Try/catch each event when loading
+  * clocks: Respect 12h clock pref/locales
+  * clocks: Add a placeholder when there are no alarms
+  * alarms: Move store to sqlite
+  * l10n: Update POT
+  * mini-calendar: Improve look and make week-nums optional
+  * calendar: Move stores to sqlite
+  * cleanup: Describe alarms as well as reminders
+  * cleanup: Use explicit variable names
+  * cleanup: Use get names for functions which role is to get something
+  * cleanup: Develop loop, avoid one-liners and pythonic code
+  * Implement clockenstein-cli
+  * Update README
+  * l10n: Update POT
+
+ -- Clement Lefebvre <root@linuxmint.com>  Thu, 17 Sep 2026 14:35:04 +0100
+
 clockenstein (1.0.0) alfa; urgency=medium
 
   [ Clement Lefebvre ]

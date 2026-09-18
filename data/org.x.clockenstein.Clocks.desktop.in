@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Clocks
+Comment=Set alarms
+Exec=clockenstein-clocks
+Icon=clockenstein-clocks
+Terminal=false
+Type=Application
+Categories=Utility;Clock;
+Keywords=clock;alarm;wake;
+StartupWMClass=org.x.clockenstein.Clocks
+StartupNotify=true

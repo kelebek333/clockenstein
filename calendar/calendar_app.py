@@ -11,7 +11,6 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from store import CalendarManager
 from main_window import MainWindow
 
 
@@ -31,7 +30,7 @@ def _activate(application):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
-    window = MainWindow(CalendarManager())
+    window = MainWindow()
     application.add_window(window)
     window.show_all()
 
@@ -47,7 +46,7 @@ def _command_line(application, command_line):
             value = argument.partition("=")[2]
         elif argument == "--date":
             if index + 1 >= len(arguments):
-                command_line.printerr(_("The --date option requires a date.\n"))
+                command_line.printerr("The --date option requires a date.\n")
                 return 2
             index += 1
             value = arguments[index]
@@ -57,7 +56,7 @@ def _command_line(application, command_line):
         try:
             requested_date = datetime.date.fromisoformat(value)
         except ValueError:
-            command_line.printerr(_("Invalid date: %s\n") % value)
+            command_line.printerr(f"Invalid date: {value}\n")
             return 2
         index += 1
 

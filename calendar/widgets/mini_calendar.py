@@ -8,15 +8,19 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import WEEKDAY_NAMES
+from clockenstein.formatting import capitalize_first, ordered_weekday_names, start_of_week
+from clockenstein.drawing import draw_circle
+from store import DEFAULT_COLOR
 
 
 class MiniCalendar(Gtk.Box):
-    def __init__(self, date, on_date_selected):
+    def __init__(self, date, on_date_selected, first_weekday=0, show_week_numbers=False):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.get_style_context().add_class("clockenstein-mini-calendar")
         self.date = date
         self.on_date_selected = on_date_selected
+        self.first_weekday = first_weekday
+        self.show_week_numbers = show_week_numbers
         self.events = []
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.SLIDE_LEFT_RIGHT,
                                transition_duration=120)
@@ -38,7 +42,7 @@ class MiniCalendar(Gtk.Box):
         self.year_button.get_style_context().add_class("mini-calendar-year")
         self.year_button.connect("clicked", self._show_years)
         header.pack_start(self.year_button, False, False, 0)
-        for icon, offset in (("go-previous-symbolic", -1), ("go-next-symbolic", 1)):
+        for icon, offset in (("xsi-go-previous-symbolic", -1), ("xsi-go-next-symbolic", 1)):
             button = Gtk.Button.new_from_icon_name(icon, Gtk.IconSize.MENU)
             button.set_relief(Gtk.ReliefStyle.NONE)
             button.get_style_context().add_class("mini-calendar-nav")
@@ -46,21 +50,32 @@ class MiniCalendar(Gtk.Box):
             header.pack_start(button, False, False, 0)
         calendar_page.pack_start(header, False, False, 0)
         weekdays = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        corner = Gtk.Label()
-        corner.set_size_request(22, -1)
-        weekdays.pack_start(corner, False, False, 0)
-        for name in WEEKDAY_NAMES:
+        self.week_corner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        self.week_corner.set_margin_end(4)
+        corner_label = Gtk.Label()
+        corner_label.set_size_request(22, -1)
+        self.week_corner.pack_start(corner_label, False, False, 0)
+        corner_separator = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+        corner_separator.set_opacity(0)
+        self.week_corner.pack_start(corner_separator, False, False, 0)
+        self.week_corner.show_all()
+        self.week_corner.set_no_show_all(True)
+        self.week_corner.set_visible(show_week_numbers)
+        weekdays.pack_start(self.week_corner, False, False, 0)
+        self.weekday_labels = []
+        for name in ordered_weekday_names(self.first_weekday):
             label = Gtk.Label(label=name)
             label.set_hexpand(True)
             label.get_style_context().add_class("mini-calendar-weekday")
             weekdays.pack_start(label, True, True, 0)
+            self.weekday_labels.append(label)
         calendar_page.pack_start(weekdays, False, False, 0)
-        self.weeks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        self.weeks_box = Gtk.Grid(row_spacing=1, column_spacing=4)
         calendar_page.pack_start(self.weeks_box, False, False, 0)
         self.stack.add_named(calendar_page, "calendar")
         selector_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         selector_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        back = Gtk.Button.new_from_icon_name("go-previous-symbolic", Gtk.IconSize.MENU)
+        back = Gtk.Button.new_from_icon_name("xsi-go-previous-symbolic", Gtk.IconSize.MENU)
         back.set_relief(Gtk.ReliefStyle.NONE)
         back.connect("clicked", lambda _button: self.stack.set_visible_child_name("calendar"))
         selector_header.pack_start(back, False, False, 0)
@@ -85,20 +100,40 @@ class MiniCalendar(Gtk.Box):
             self.date = date
             self._render()
 
-    def set_events(self, events):
-        self.events = events
+    def set_first_weekday(self, first_weekday):
+        self.first_weekday = first_weekday
+        for label, name in zip(
+                self.weekday_labels, ordered_weekday_names(first_weekday)):
+            label.set_text(name)
         self._render()
 
+    def set_show_week_numbers(self, show_week_numbers):
+        self.show_week_numbers = show_week_numbers
+        self.week_corner.set_visible(show_week_numbers)
+        self._render()
+
+    def set_events(self, events):
+        self.events = events
+        if self._rendered_today != datetime.date.today():
+            self._render()
+            return
+        colors = self._get_event_colors()
+        for date, dots in self._day_dots.items():
+            day_colors = colors.get(date, ())
+            if dots.colors != day_colors:
+                dots.colors = day_colors
+                dots.queue_draw()
+
     def _show_months(self, _button):
-        values = [(month, _capitalize_first(datetime.date(2024, month, 1).strftime("%B")))
+        values = [(month, capitalize_first(datetime.date(2024, month, 1).strftime("%B")))
                   for month in range(1, 13)]
-        self._show_selector(_("Select Month"), "month", values, self.date.month)
+        self._show_selector(_("Month"), "month", values, self.date.month)
 
     def _show_years(self, _button):
         first = max(1, self.date.year - 100)
         last = min(9999, self.date.year + 100)
         values = [(year, str(year)) for year in range(first, last + 1)]
-        self._show_selector(_("Select Year"), "year", values, self.date.year)
+        self._show_selector(_("Year"), "year", values, self.date.year)
 
     def _show_selector(self, title, kind, values, selected):
         self.selector_title.set_text(title)
@@ -160,24 +195,33 @@ class MiniCalendar(Gtk.Box):
         self.on_date_selected(date)
 
     def _render(self):
-        self.month_label.set_text(_capitalize_first(self.date.strftime("%B")))
+        self._rendered_today = datetime.date.today()
+        self.month_label.set_text(capitalize_first(self.date.strftime("%B")))
         self.year_label.set_text(str(self.date.year))
         for child in self.weeks_box.get_children():
             self.weeks_box.remove(child)
+        self._day_dots = {}
         first = datetime.date(self.date.year, self.date.month, 1)
-        grid_start = first - datetime.timedelta(days=first.weekday())
-        colors = self._event_colors()
-        selected_week = self.date - datetime.timedelta(days=self.date.weekday())
+        grid_start = start_of_week(first, self.first_weekday)
+        colors = self._get_event_colors()
+        selected_week = start_of_week(self.date, self.first_weekday)
         for week_index in range(6):
             week_start = grid_start + datetime.timedelta(weeks=week_index)
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
             row.get_style_context().add_class("mini-calendar-week")
             if week_start == selected_week:
                 row.get_style_context().add_class("selected")
-            week_number = Gtk.Label(label=str(week_start.isocalendar()[1]))
-            week_number.set_size_request(22, -1)
-            week_number.get_style_context().add_class("mini-calendar-week-number")
-            row.pack_start(week_number, False, False, 0)
+            # week_start is the date of our first day in the row, it could be Monday or Sunday
+            # Find the date for Tuesday in this row to determine its ISO week number.
+            # Python's weekday() always starts with Monday (on any locale), so Tuesday is always +1
+            date = week_start
+            while date.weekday() != 1:
+                date += datetime.timedelta(days=1)
+            if self.show_week_numbers:
+                week_number = Gtk.Label(label=str(date.isocalendar()[1]))
+                week_number.set_size_request(22, -1)
+                week_number.get_style_context().add_class("mini-calendar-week-number")
+                self.weeks_box.attach(week_number, 0, week_index, 1, 1)
             for day_offset in range(7):
                 date = week_start + datetime.timedelta(days=day_offset)
                 button = Gtk.Button()
@@ -188,18 +232,28 @@ class MiniCalendar(Gtk.Box):
                     button.get_style_context().add_class("other-month")
                 if date == self.date:
                     button.get_style_context().add_class("selected")
-                if date == datetime.date.today():
+                if date == self._rendered_today:
                     button.get_style_context().add_class("today")
                 content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+                content.set_valign(Gtk.Align.CENTER)
                 content.pack_start(Gtk.Label(label=str(date.day)), False, False, 0)
-                content.pack_start(_EventDots(colors.get(date, ())), False, False, 0)
+                dots = _EventDots(colors.get(date, ()))
+                self._day_dots[date] = dots
+                content.pack_start(dots, False, False, 0)
                 button.add(content)
                 button.connect("clicked", lambda _button, value=date: self._select_date(value))
-                row.pack_start(button, True, True, 0)
-            self.weeks_box.pack_start(row, False, False, 0)
+                day_frame = Gtk.AspectFrame(xalign=0.5, yalign=0.5, ratio=1, obey_child=False)
+                day_frame.set_shadow_type(Gtk.ShadowType.NONE)
+                day_frame.add(button)
+                row.pack_start(day_frame, True, True, 0)
+            day_column = 2 if self.show_week_numbers else 0
+            self.weeks_box.attach(row, day_column, week_index, 1, 1)
+        if self.show_week_numbers:
+            separator = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+            self.weeks_box.attach(separator, 1, 0, 1, 6)
         self.weeks_box.show_all()
 
-    def _event_colors(self):
+    def _get_event_colors(self):
         result = {}
         month_start = datetime.date(self.date.year, self.date.month, 1)
         for event in self.events:
@@ -208,16 +262,11 @@ class MiniCalendar(Gtk.Box):
             day = max(start, month_start - datetime.timedelta(days=7))
             while day <= end and day <= month_start + datetime.timedelta(days=42):
                 colors = result.setdefault(day, [])
-                color = event.get("calendar_color", "#3584e4")
+                color = event.get("calendar_color", DEFAULT_COLOR)
                 if color not in colors and len(colors) < 4:
                     colors.append(color)
                 day += datetime.timedelta(days=1)
         return result
-
-
-def _capitalize_first(text):
-    return text[:1].upper() + text[1:]
-
 
 class _EventDots(Gtk.DrawingArea):
     def __init__(self, colors):
@@ -235,8 +284,6 @@ class _EventDots(Gtk.DrawingArea):
         for color in self.colors:
             rgba = Gdk.RGBA()
             rgba.parse(color)
-            Gdk.cairo_set_source_rgba(cr, rgba)
-            cr.arc(x + diameter / 2, 2, diameter / 2, 0, 6.283)
-            cr.fill()
+            draw_circle(cr, rgba, x + diameter / 2, 2, diameter / 2)
             x += diameter + gap
         return False

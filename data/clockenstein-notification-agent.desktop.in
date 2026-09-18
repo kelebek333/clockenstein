@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Clockenstein Notification Agent
-Comment=Display reminder windows from Clockenstein
+Comment=Display event reminders and alarms from Clockenstein
 Exec=/usr/bin/systemctl --user start clockenstein-notification-agent.service
 NoDisplay=true
 X-GNOME-Autostart-enabled=true

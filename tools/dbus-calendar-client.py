@@ -10,13 +10,13 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gio, GLib, Gtk
 
 CALENDAR_DIR = Path(__file__).resolve().parents[1] / "calendar"
+ROOT = CALENDAR_DIR.parent
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(CALENDAR_DIR))
 from widgets.mini_calendar import MiniCalendar
+from clockenstein import BUS_INTERFACE, BUS_NAME, BUS_PATH
 
 
-BUS_NAME = "org.x.clockenstein.Calendar.Service"
-BUS_PATH = "/org/x/clockenstein/Calendar/Service"
-BUS_INTERFACE = "org.x.clockenstein.Calendar.Service"
 EVENTS_TYPE = GLib.VariantType.new("(a(sssbxxx))")
 
 

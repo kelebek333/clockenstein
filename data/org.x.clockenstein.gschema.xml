@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.x.clockenstein" path="/org/x/clockenstein/">
+    <key name="calendar-default-view" type="s">
+      <default>'month'</default>
+    </key>
+    <key name="first-day-of-week" type="s">
+      <choices>
+        <choice value="locale"/>
+        <choice value="monday"/>
+        <choice value="sunday"/>
+      </choices>
+      <default>'locale'</default>
+      <summary>First day of the week</summary>
+      <description>Use the locale default, Monday or Sunday.</description>
+    </key>
+    <key name="calendar-show-week-numbers" type="b">
+      <default>false</default>
+      <summary>Show week numbers</summary>
+      <description>Show ISO week numbers in the mini-calendar.</description>
+    </key>
+    <key name="time-format" type="s">
+      <choices>
+        <choice value="locale"/>
+        <choice value="12-hour"/>
+        <choice value="24-hour"/>
+      </choices>
+      <default>'locale'</default>
+      <summary>Time format</summary>
+      <description>Use the system locale, a 12-hour clock, or a 24-hour clock.</description>
+    </key>
+    <key name="calendar-window-width" type="i">
+      <default>1100</default>
+      <range min="640" max="32768"/>
+    </key>
+    <key name="calendar-window-height" type="i">
+      <default>750</default>
+      <range min="460" max="32768"/>
+    </key>
+    <key name="google-oauth-provider" type="s">
+      <default>'clockenstein'</default>
+      <summary>Google authorization provider</summary>
+      <description>Authorization provider used when connecting new Google accounts.</description>
+    </key>
+    <key name="verbose" type="b">
+      <default>false</default>
+    </key>
+    <key name="reminder-minutes" type="u">
+      <default>10</default>
+      <range min="0" max="525600"/>
+      <summary>Event notification lead time</summary>
+      <description>Number of minutes before every event when the daemon emits a reminder.</description>
+    </key>
+  </schema>
+</schemalist>

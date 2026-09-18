@@ -11,12 +11,15 @@ Build-Depends:
  meson (>= 0.59.0),
  pkg-config,
  python3,
+ python3-babel,
  python3-caldav,
  python3-gi,
  python3-google-auth-httplib2,
  python3-google-auth-oauthlib,
  python3-googleapi,
  python3-icalendar,
+ python3-pycurl,
+ python3-requests,
  python3-setproctitle,
  python3-xapp,
 Standards-Version: 4.6.2
@@ -35,13 +38,17 @@ Depends:
  python3-google-auth-oauthlib,
  python3-googleapi,
  python3-icalendar,
+ python3-pycurl,
+ python3-requests,
+ python3-rich,
  python3-setproctitle,
  python3-xapp,
 Suggests:
  clockenstein-notification-agent,
 Description: Background service for Clockenstein
- Clockenstein Daemon provides online calendar refreshes and the D-Bus event
- service used by desktop clients.
+ Clockenstein Daemon syncs online calendars, schedules event reminders and
+ alarms, and provides the D-Bus service used by desktop clients.
+ It also includes clockenstein-cli to inspect the local databases.
 
 Package: clockenstein-notification-agent
 Architecture: all
@@ -54,9 +61,10 @@ Depends:
  python3-gi,
  python3-setproctitle,
  python3-xapp,
-Description: Desktop reminder agent for Clockenstein
- The Clockenstein notification agent listens for reminder signals from the
- Clockenstein daemon and displays them in reminder windows.
+ xapp-symbolic-icons,
+Description: Desktop notification agent for Clockenstein
+ The Clockenstein notification agent displays event reminders and alarms
+ from the daemon, plays their sounds, and provides snooze and mute controls.
 
 Package: clockenstein-calendar
 Architecture: all
@@ -65,9 +73,26 @@ Depends:
  clockenstein-daemon,
  gir1.2-gtk-3.0,
  python3,
+ python3-babel,
  python3-gi,
  python3-setproctitle,
  python3-xapp,
+ xapp-symbolic-icons,
 Description: Calendar application with local, Google and CalDAV support
  Clockenstein Calendar lets you manage multiple calendars. It supports local
  calendars, Google Calendars and CalDAV (Nextcloud, Memotoo etc.).
+
+Package: clockenstein-clocks
+Architecture: all
+Depends:
+ ${misc:Depends},
+ clockenstein-daemon,
+ gir1.2-gsound-1.0,
+ gir1.2-gtk-3.0,
+ python3,
+ python3-gi,
+ python3-setproctitle,
+ python3-xapp,
+ xapp-symbolic-icons,
+Description: Clock application with alarms
+ Clockenstein Clocks lets you create one-off and repeating alarms.

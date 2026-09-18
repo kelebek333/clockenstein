@@ -8,29 +8,31 @@ from xapp.util import l10n
 
 _ = l10n("clockenstein")
 
-from formatting import WEEKDAY_NAMES
+from clockenstein.formatting import WEEKDAY_NAMES, format_time, start_of_week
 from views.colors import apply_tinted_event_color
-from views.month_view import _event_has_ended, _event_tooltip
-from views.day_view import (ALL_DAY_EVENT_MARGIN, ALL_DAY_HEIGHT,
+from views.month_view import _activate_event, _event_has_ended, _get_event_tooltip
+from views.day_view import (ALL_DAY_EVENT_MARGIN, ALL_DAY_HEIGHT, HOUR_HEIGHT,
                             DAY_END_MINUTE, DAY_START_MINUTE,
                             _assign_event_columns, _draw_day_grid, _draw_now_line,
                             _minute_to_y,
-                            _initial_scroll_minute, _timed_segment_minutes)
+                            _get_initial_scroll_minute, _get_timed_segment_minutes)
 
-HOUR_HEIGHT = 48
 START_HOUR  = 0
 END_HOUR    = 24
 
 
 class WeekView(Gtk.Box):
-    def __init__(self, today: datetime.date, on_event: Callable, on_new_event: Callable,
-                 on_select=None):
+    def __init__(self, today: datetime.date, timezone, on_event: Callable, on_new_event: Callable,
+                 on_select=None, first_weekday=0, time_format="locale"):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.today    = today
+        self.timezone = timezone
         self.on_event = on_event
         self.on_new_event = on_new_event
         self.on_select = on_select
         self.selected_date = today
+        self.first_weekday = first_weekday
+        self.time_format = time_format
         self._shows_today = True
         self._build()
 
@@ -85,13 +87,15 @@ class WeekView(Gtk.Box):
         self.gutter = Gtk.Fixed()
         self.gutter.set_size_request(52, DAY_END_MINUTE // 60 * HOUR_HEIGHT)
         body.pack_start(self.gutter, False, False, 0)
+        self.hour_labels = []
         for h in range(START_HOUR, END_HOUR):
-            lbl = Gtk.Label(label=f"{h:02d}:00")
+            lbl = Gtk.Label()
             lbl.set_size_request(52, 20)
             lbl.set_xalign(1)
             lbl.set_yalign(0.5)
             lbl.get_style_context().add_class("clockenstein-time-label")
             self.gutter.put(lbl, 0, max(0, _minute_to_y(h * 60) - 10))
+            self.hour_labels.append((h, lbl))
         self.now_label = Gtk.Label()
         self.now_label.set_size_request(52, 20)
         self.now_label.set_xalign(1)
@@ -109,12 +113,13 @@ class WeekView(Gtk.Box):
         self.right_gutter.set_size_request(52, DAY_END_MINUTE // 60 * HOUR_HEIGHT)
         body.pack_end(self.right_gutter, False, False, 0)
         for hour in range(START_HOUR, END_HOUR):
-            label = Gtk.Label(label=f"{hour:02d}:00")
+            label = Gtk.Label()
             label.set_size_request(52, 20)
             label.set_xalign(0)
             label.set_yalign(0.5)
             label.get_style_context().add_class("clockenstein-time-label")
             self.right_gutter.put(label, 0, max(0, _minute_to_y(hour * 60) - 10))
+            self.hour_labels.append((hour, label))
         self.right_now_label = Gtk.Label()
         self.right_now_label.set_size_request(52, 20)
         self.right_now_label.set_xalign(0)
@@ -123,11 +128,12 @@ class WeekView(Gtk.Box):
         self.right_gutter.put(self.right_now_label, 0, 0)
 
         GLib.timeout_add_seconds(30, self._update_now_line)
+        self._update_time_labels()
 
     def update(self, current_date: datetime.date, events: list[dict], selected_date=None):
         if selected_date is not None:
             self.selected_date = selected_date
-        start = current_date - datetime.timedelta(days=current_date.weekday())
+        start = start_of_week(current_date, self.first_weekday)
         week = [start + datetime.timedelta(days=i) for i in range(7)]
         self._shows_today = self.today in week
 
@@ -145,10 +151,10 @@ class WeekView(Gtk.Box):
                 lbl.get_style_context().remove_class("clockenstein-selected-week-day")
 
         by_date: dict[datetime.date, list[dict]] = {}
-        for ev in events:
-            day = ev["date_start"]
-            while day <= ev.get("date_end", day):
-                by_date.setdefault(day, []).append(ev)
+        for event in events:
+            day = event["date_start"]
+            while day <= event.get("date_end", day):
+                by_date.setdefault(day, []).append(event)
                 day += datetime.timedelta(days=1)
 
         week_has_events = any(by_date.get(day) for day in week)
@@ -189,18 +195,40 @@ class WeekView(Gtk.Box):
             )
 
         self.show_all()
-        scroll_minute = _initial_scroll_minute(events, week, self._shows_today)
-        GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
-                      _minute_to_y(scroll_minute))
+        if getattr(self, "_scroll_week", None) != start:
+            self._scroll_week = start
+            scroll_minute = _get_initial_scroll_minute(events, week, self._shows_today)
+            GLib.idle_add(self.timeline_scroll.get_vadjustment().set_value,
+                          _minute_to_y(scroll_minute))
         self._update_now_line()
 
+    def set_first_weekday(self, first_weekday):
+        self.first_weekday = first_weekday
+
+    def set_today(self, today: datetime.date):
+        self.today = today
+        self._update_now_line()
+
+    def set_timezone(self, timezone, today):
+        self.timezone = timezone
+        self.set_today(today)
+
+    def set_time_format(self, time_format):
+        self.time_format = time_format
+        self._update_time_labels()
+        self._update_now_line()
+
+    def _update_time_labels(self):
+        for hour, label in self.hour_labels:
+            label.set_text(format_time(datetime.time(hour), self.time_format))
+
     def _update_now_line(self):
-        now = datetime.datetime.now()
+        now = datetime.datetime.now(self.timezone)
         minutes = now.hour * 60 + now.minute
         self.now_label.set_visible(self._shows_today)
         self.right_now_label.set_visible(self._shows_today)
         if self._shows_today:
-            text = now.strftime("%H:%M")
+            text = format_time(now.time(), self.time_format)
             self.now_label.set_text(text)
             self.right_now_label.set_text(text)
             y = _minute_to_y(minutes) - 10
@@ -279,23 +307,22 @@ class _DayColumn(Gtk.Overlay):
             self.event_layer.remove(child)
         self._positioned_events = []
 
-        for ev in events:
-            full_day = ev["all_day"] or ev["time_start"] is None
+        for event in events:
+            full_day = event["all_day"] or event["time_start"] is None
             if full_day:
                 start_minutes, end_minutes = DAY_START_MINUTE, DAY_END_MINUTE
             else:
-                start_minutes, end_minutes = _timed_segment_minutes(ev, day)
+                start_minutes, end_minutes = _get_timed_segment_minutes(event, day)
                 if end_minutes <= start_minutes:
                     continue
-            btn = _WeekEventButton()
-            btn.get_style_context().add_class("clockenstein-week-event")
-            btn.get_style_context().add_class("clockenstein-week-timeline-event")
-            apply_tinted_event_color(btn, ev)
-            if _event_has_ended(ev):
-                btn.set_opacity(0.5)
-            btn.connect("button-press-event",
-                        lambda _widget, _click, e=ev: self.on_event(e))
-            tooltip_markup = _event_tooltip(ev)
+            event_button = _WeekEventButton()
+            event_button.get_style_context().add_class("clockenstein-week-event")
+            event_button.get_style_context().add_class("clockenstein-week-timeline-event")
+            apply_tinted_event_color(event_button, event)
+            if _event_has_ended(event):
+                event_button.set_opacity(0.5)
+            event_button.connect("button-press-event", _activate_event, self.on_event, event)
+            tooltip_markup = _get_event_tooltip(event)
             content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             content.set_valign(Gtk.Align.CENTER if full_day else Gtk.Align.START)
             content.set_margin_top(5)
@@ -307,11 +334,11 @@ class _DayColumn(Gtk.Overlay):
             label = Gtk.Label()
             label.set_xalign(0)
             label.set_single_line_mode(True)
-            title = ev.get("summary") or _("Untitled")
+            title = event.get("summary") or _("Untitled")
             label.set_markup(f"<b>{GLib.markup_escape_text(title)}</b>")
             content.pack_start(label, False, False, 0)
-            btn.add(content)
-            for tooltip_target in (btn, content, label):
+            event_button.add(content)
+            for tooltip_target in (event_button, content, label):
                 tooltip_target.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK |
                                           Gdk.EventMask.LEAVE_NOTIFY_MASK)
                 tooltip_target.set_has_tooltip(True)
@@ -322,8 +349,8 @@ class _DayColumn(Gtk.Overlay):
             top = ALL_DAY_EVENT_MARGIN if full_day else _minute_to_y(start_minutes)
             height = (ALL_DAY_HEIGHT - 2 * ALL_DAY_EVENT_MARGIN if full_day else
                       max(1, _minute_to_y(end_minutes) - _minute_to_y(start_minutes)))
-            self.event_layer.put(btn, 0, top)
-            self._positioned_events.append({"widget": btn, "start": start_minutes,
+            self.event_layer.put(event_button, 0, top)
+            self._positioned_events.append({"widget": event_button, "start": start_minutes,
                                             "end": end_minutes, "top": top,
                                             "height": height, "content": content,
                                             "label": label, "title": title,
@@ -416,8 +443,9 @@ def _show_event_tooltip(_widget, _x, _y, _keyboard_mode, tooltip, markup):
 
 
 def _fit_week_title(widget, title, available_width):
+    layout = widget.create_pango_layout("")
+
     def fits(value):
-        layout = widget.create_pango_layout("")
         layout.set_markup(f"<b>{GLib.markup_escape_text(value)}</b>", -1)
         width, _height = layout.get_pixel_size()
         return width <= available_width
@@ -445,17 +473,3 @@ def _draw_day_separator(widget, cr):
     cr.line_to(width - 0.5, height)
     cr.stroke()
     return False
-
-
-def _draw_grid(widget, cr):
-    return _draw_day_grid(widget, cr)
-
-
-def _to_y(t: datetime.time) -> int:
-    return int(((t.hour - START_HOUR) * 60 + t.minute) / 60 * HOUR_HEIGHT)
-
-
-def _time_span_minutes(start, end):
-    start_minutes = start.hour * 60 + start.minute
-    end_minutes = end.hour * 60 + end.minute
-    return max(30, end_minutes - start_minutes)

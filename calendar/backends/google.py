@@ -2,15 +2,18 @@ import datetime
 import base64
 import hashlib
 import json
-import httplib2
 import zlib
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from google.oauth2.credentials import Credentials
 from google_auth_httplib2 import AuthorizedHttp
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from xapp.util import l10n
+from backends.remote import RemoteBackend
+from clockenstein.networking import GoogleHttp
+from clockenstein.sync import SyncDownload, write_private_json
 
 _ = l10n("clockenstein")
 
@@ -34,23 +37,21 @@ class GoogleUnavailable(RuntimeError):
     pass
 
 
-class GoogleBackend:
-    def __init__(self, data_dir: Path):
-        self.data_dir = Path(data_dir)
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.accounts_file = self.data_dir / "accounts.json"
-        self.accounts = self._read_json(self.accounts_file, [])
+class GoogleBackend(RemoteBackend):
+    provider = "google"
+
+    def __init__(self, data_dir: Path, timezone: datetime.tzinfo):
+        super().__init__(data_dir, timezone)
+        self.data_dir = self.database.data_dir / "google"
+        self.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.data_dir.chmod(0o700)
         self._services = {}
         self._credentials = {}
         self._errors = {}
         self.last_refresh_stats = {}
         self._load_services()
 
-    @property
-    def has_accounts(self):
-        return bool(self.accounts)
-
-    def account_states(self):
+    def get_account_states(self):
         return [{"id": a["id"], "name": a.get("name", a["id"]),
                  "online": self._account_available(a["id"]),
                  "error": self._errors.get(a["id"], "")} for a in self.accounts]
@@ -60,40 +61,33 @@ class GoogleBackend:
                 or account_id in self._credentials and account_id not in self._errors)
 
     def connect(self, progress=None) -> str:
-        scopes = self._scopes_for_credentials()
+        scopes = self._get_scopes_for_credentials()
         if progress:
             progress(_("Waiting for Google authorization…"))
         flow = InstalledAppFlow.from_client_config(
             self._read_oauth_client_config(), scopes
         )
-        creds = flow.run_local_server(port=0, authorization_prompt_message="Opening Google sign-in…",
+        credentials = flow.run_local_server(port=0, authorization_prompt_message="Opening Google sign-in…",
                                       prompt="select_account consent")
         if progress:
             progress(_("Authorization received • Contacting Google Calendar…"))
-        service = self._build_service(creds)
+        service = self._build_service(credentials)
         if progress:
             progress(_("Loading your Google calendars…"))
         calendars = self._fetch_calendars(service)
-        primary = next((c for c in calendars if c.get("primary")), None)
+        primary = next((calendar for calendar in calendars if calendar.get("primary")), None)
         if not primary:
             raise GoogleUnavailable(_("Google did not return a primary calendar"))
         account_id = primary["id"]
         token_name = hashlib.sha256(account_id.encode()).hexdigest()[:20] + ".json"
-        (self.data_dir / token_name).write_text(self._credentials_json(creds), encoding="utf-8")
-        account = next((a for a in self.accounts if a["id"] == account_id), None)
-        if account is None:
-            account = {"id": account_id, "name": account_id, "token": token_name,
-                       "calendars": [], "events": [], "scopes": scopes,
-                       "auth_provider": "clockenstein"}
-            self.accounts.append(account)
-        account["auth_provider"] = "clockenstein"
-        account["token"] = token_name
-        account["scopes"] = scopes
-        account["calendars"] = self._merge_calendar_preferences(account.get("calendars", []), calendars)
+        self._save_credentials(token_name, credentials)
+        account = {"id": account_id, "name": account_id, "token": token_name,
+                   "scopes": scopes, "auth_provider": "clockenstein"}
+        self.database.connect_account(self.provider, account,
+                                      self._get_calendar_metadata(calendars))
         self._services[account_id] = service
-        self._credentials[account_id] = creds
+        self._credentials[account_id] = credentials
         self._errors.pop(account_id, None)
-        self._save()
         return account_id
 
     @staticmethod
@@ -107,7 +101,7 @@ class GoogleBackend:
 
     def list_goa_accounts(self):
         result = []
-        for goa_object in self._goa_accounts():
+        for goa_object in self._get_goa_accounts():
             account = goa_object.get_account()
             result.append({
                 "id": account.props.id,
@@ -128,26 +122,13 @@ class GoogleBackend:
         if not primary:
             raise GoogleUnavailable(_("Google did not return a primary calendar"))
         account_id = f"goa:{goa_account_id}"
-        account = next((item for item in self.accounts if item["id"] == account_id), None)
-        if account is None:
-            account = {
-                "id": account_id,
-                "name": goa_account.props.presentation_identity or primary["id"],
-                "auth_provider": "goa",
-                "goa_account_id": goa_account_id,
-                "calendars": [],
-                "events": [],
-            }
-            self.accounts.append(account)
-        account["auth_provider"] = "goa"
-        account["goa_account_id"] = goa_account_id
-        account["name"] = goa_account.props.presentation_identity or primary["id"]
-        account["calendars"] = self._merge_calendar_preferences(
-            account.get("calendars", []), calendars
-        )
+        account = {"id": account_id,
+                   "name": goa_account.props.presentation_identity or primary["id"],
+                   "auth_provider": "goa", "goa_account_id": goa_account_id}
+        self.database.connect_account(self.provider, account,
+                                      self._get_calendar_metadata(calendars))
         self._services[account_id] = service
         self._errors.pop(account_id, None)
-        self._save()
         return account_id
 
     def disconnect(self, account_id: str):
@@ -158,195 +139,100 @@ class GoogleBackend:
             token = self.data_dir / account.get("token", "missing")
             if token.exists():
                 token.unlink()
-        self.accounts.remove(account)
+        self.database.disconnect_account(self.provider, account_id)
         self._services.pop(account_id, None)
         self._credentials.pop(account_id, None)
         self._errors.pop(account_id, None)
-        self._save()
-
-    def list_calendars(self):
-        result = []
-        for account in self.accounts:
-            online = self._account_available(account["id"])
-            for cal in account.get("calendars", []):
-                result.append({"id": cal["id"], "name": cal.get("name", cal["id"]),
-                               "color": cal.get("color", "#4285f4"), "provider": "google",
-                               "account_id": account["id"], "account_name": account.get("name", account["id"]),
-                               "visible": cal.get("visible", True),
-                               "reminders": cal.get("reminders", True),
-                               "primary": cal.get("primary", cal["id"] == account["id"]),
-                               "sync_range": cal.get("sync_range", "normal"),
-                               "last_sync": cal.get("last_sync"),
-                               "sync_error": cal.get("sync_error", ""),
-                               "writable": cal.get("access_role") in ("writer", "owner"),
-                               "available": online and cal.get("sync_range") != "too-big"})
-        return result
-
-    def set_visible(self, calendar_id, visible, account_id=None):
-        for account in self.accounts:
-            if account_id and account["id"] != account_id:
-                continue
-            for cal in account.get("calendars", []):
-                if cal["id"] == calendar_id:
-                    cal["visible"] = bool(visible)
-                    self._save()
-                    return
-
-    def set_reminders(self, calendar_id, enabled, account_id=None):
-        for account in self.accounts:
-            if account_id and account["id"] != account_id:
-                continue
-            for cal in account.get("calendars", []):
-                if cal["id"] == calendar_id:
-                    cal["reminders"] = bool(enabled)
-                    self._save()
-                    return
-
-    def get_events(self, start=None, end=None, include_hidden=False):
-        calendars = {(a["id"], c["id"]): c for a in self.accounts
-                     for c in a.get("calendars", [])
-                     if include_hidden or c.get("visible", True)}
-        result = []
-        for account in self.accounts:
-            online = self._account_available(account["id"])
-            for raw in account.get("events", []):
-                cal = calendars.get((account["id"], raw.get("_calendar_id")))
-                if not cal or raw.get("status") == "cancelled":
-                    continue
-                event = google_event_to_dict(raw, cal, account, online)
-                if start and event["date_end"] < start:
-                    continue
-                if end and event["date_start"] > end:
-                    continue
-                result.append(event)
-        return result
 
     def refresh(self, start: datetime.date, end: datetime.date,
                 limited_range=None, restricted_range=None,
                 target_account_id=None, target_calendar_id=None):
-        """Refresh the requested range. Returns a list of account errors."""
         errors = []
-        stats = {
-            "accounts": len(self.accounts),
-            "page_size": EVENTS_PAGE_SIZE,
-            "calendars": 0,
-            "limited_calendars": 0,
-            "restricted_calendars": 0,
-            "too_big_calendars": 0,
-            "calendar_list_requests": 0,
-            "event_list_requests": 0,
-            "events": 0,
-        }
+        stats = {"accounts": len(self.accounts), "page_size": EVENTS_PAGE_SIZE,
+                 "calendars": 0, "limited_calendars": 0, "restricted_calendars": 0,
+                 "too_big_calendars": 0, "calendar_list_requests": 0,
+                 "event_list_requests": 0, "events": 0}
         for account in self.accounts:
             account_id = account["id"]
             if target_account_id and account_id != target_account_id:
                 continue
-            service = self._services.get(account_id)
-            if account.get("auth_provider", "clockenstein") == "goa":
-                try:
-                    service = self._refresh_goa_service(account)
-                except Exception as exc:
-                    self._errors[account_id] = str(exc)
-                    service = None
-            elif service is None and account_id in self._credentials:
-                try:
-                    service = self._build_service(self._credentials[account_id])
-                    self._services[account_id] = service
-                except Exception as exc:
-                    self._errors[account_id] = str(exc)
-            if not service:
-                error = self._errors.get(account_id, _("not connected"))
-                for cal in account.get("calendars", []):
-                    if target_calendar_id and cal["id"] != target_calendar_id:
-                        continue
-                    cal["sync_error"] = error
-                errors.append(f"{account_id}: {error}")
-                continue
+            account_error = None
             try:
-                retained = [e for e in account.get("events", [])
-                            if not _raw_overlaps(e, start, end)]
-                fetched = []
-                for cal in account["calendars"]:
-                    if target_calendar_id and cal["id"] != target_calendar_id:
-                        continue
-                    if not cal.get("visible", True) and not target_calendar_id:
-                        continue
-                    stats["calendars"] += 1
-                    sync_range = cal.get("sync_range", "normal")
-                    if sync_range == "too-big":
-                        stats["too_big_calendars"] += 1
-                        continue
-                    if sync_range == "restricted" and restricted_range:
-                        cal_start, cal_end = restricted_range
-                        stats["restricted_calendars"] += 1
-                    elif sync_range == "limited" and limited_range:
-                        cal_start, cal_end = limited_range
-                        stats["limited_calendars"] += 1
-                    else:
-                        cal_start, cal_end = start, end
-                    events, paginated = self._fetch_events(
-                        service, cal["id"], cal_start, cal_end, stats,
-                        first_page_only=bool(limited_range)
-                    )
-                    if paginated and sync_range == "normal" and limited_range:
-                        cal["sync_range"] = sync_range = "limited"
-                        cal_start, cal_end = limited_range
-                        stats["limited_calendars"] += 1
-                        events, paginated = self._fetch_events(
-                            service, cal["id"], cal_start, cal_end, stats,
-                            first_page_only=bool(restricted_range)
-                        )
-                    if paginated and sync_range == "limited" and restricted_range:
-                        cal["sync_range"] = sync_range = "restricted"
-                        cal_start, cal_end = restricted_range
-                        stats["restricted_calendars"] += 1
-                        events, paginated = self._fetch_events(
-                            service, cal["id"], cal_start, cal_end, stats,
-                            first_page_only=True
-                        )
-                    if paginated and sync_range == "restricted":
-                        cal["sync_range"] = "too-big"
-                        stats["too_big_calendars"] += 1
-                        events = []
-                    if cal.get("sync_range") != "too-big":
-                        cal["last_sync"] = int(datetime.datetime.now().timestamp())
-                        cal["sync_error"] = ""
-                    fetched.extend(events)
-                too_big_ids = {cal["id"] for cal in account["calendars"]
-                               if cal.get("sync_range") == "too-big"}
-                if too_big_ids:
-                    retained = [event for event in retained
-                                if event.get("_calendar_id") not in too_big_ids]
-                if target_calendar_id:
-                    retained = [event for event in account.get("events", [])
-                                if event.get("_calendar_id") != target_calendar_id
-                                or not _raw_overlaps(event, start, end)]
-                account["events"] = retained + fetched
-                creds = self._credentials.get(account_id)
-                if creds is not None and account.get("token"):
-                    (self.data_dir / account["token"]).write_text(
-                        self._credentials_json(creds), encoding="utf-8"
-                    )
-                self._errors.pop(account_id, None)
+                service = self._require_service(account_id)
             except Exception as exc:
-                self._services.pop(account_id, None)
-                self._errors[account_id] = str(exc)
-                for cal in account.get("calendars", []):
-                    if target_calendar_id and cal["id"] != target_calendar_id:
-                        continue
-                    cal["sync_error"] = str(exc)
+                self._sync_failed(account_id, exc, target_calendar_id, start, end)
                 errors.append(f"{account_id}: {exc}")
+                continue
+            for calendar in self.database.get_calendars(self.provider, account_id):
+                if target_calendar_id and calendar["id"] != target_calendar_id:
+                    continue
+                if not calendar["visible"]:
+                    continue
+                sync_range = calendar["sync_range"]
+                if sync_range == "too-big":
+                    stats["too_big_calendars"] += 1
+                    continue
+                stats["calendars"] += 1
+                download = SyncDownload(self.database.data_dir, self.provider, account_id, calendar["id"], start, end)
+                try:
+                    ranges = {"normal": (start, end), "limited": limited_range,
+                              "restricted": restricted_range}
+                    while True:
+                        cal_start, cal_end = ranges[sync_range] or (start, end)
+                        if sync_range in ("limited", "restricted"):
+                            stats[f"{sync_range}_calendars"] += 1
+                        first_page_only = bool(limited_range) if sync_range == "normal" else bool(restricted_range)
+                        if sync_range == "restricted":
+                            first_page_only = True
+                        raw_events, paginated = self._fetch_events(
+                            service, calendar["id"], cal_start, cal_end, self.timezone, stats,
+                            first_page_only=first_page_only, download=download)
+                        if paginated and sync_range == "normal" and limited_range:
+                            sync_range = "limited"
+                        elif paginated and sync_range == "limited" and restricted_range:
+                            sync_range = "restricted"
+                        elif paginated and sync_range == "restricted":
+                            sync_range = "too-big"
+                            stats["too_big_calendars"] += 1
+                            raw_events = []
+                            break
+                        else:
+                            break
+                    # Save before parsing: malformed data is precisely what we need
+                    # to inspect when conversion fails. Failed downloads keep the old file.
+                    download.save()
+                    events = [google_event_to_dict(raw, calendar, account, True, self.timezone)
+                              for raw in raw_events if raw.get("status") != "cancelled"]
+                    for event in events:
+                        # Calendar permissions are applied when reading, not frozen
+                        # into the event when downloading from a read-only calendar.
+                        event["editable"] = event["event_type"] == "default"
+                    self.database.apply_sync(calendar, events, start, end, self.timezone, sync_range)
+                    download.finish()
+                except Exception as exc:
+                    download.finish(exc)
+                    account_error = str(exc)
+                    self._errors[account_id] = str(exc)
+                    self._sync_failed(account_id, exc, calendar["id"])
+                    errors.append(f"{account_id}: {exc}")
+            if account_error:
+                self._services.pop(account_id, None)
+            else:
+                self._errors.pop(account_id, None)
+            credentials = self._credentials.get(account_id)
+            if credentials is not None and account.get("token"):
+                # Do not recreate a token file after a concurrent disconnect.
+                if any(a["id"] == account_id for a in self.accounts):
+                    self._save_credentials(account["token"], credentials)
         self.last_refresh_stats = stats
-        self._save()
         return errors
 
     def create_event(self, data):
         self._validate_event_range(data)
         service = self._require_service(data["account_id"])
-        body = event_dict_to_google(data)
+        body = event_dict_to_google(data, self.timezone)
         raw = service.events().insert(calendarId=data["calendar_id"], body=body).execute()
-        raw["_calendar_id"] = data["calendar_id"]
-        self._upsert_cached(data["account_id"], raw)
+        self._upsert_cached(data["account_id"], data["calendar_id"], raw)
         return raw
 
     def update_event(self, uid, data):
@@ -357,22 +243,13 @@ class GoogleBackend:
             service.events().move(calendarId=source_id, eventId=uid,
                                   destination=data["calendar_id"]).execute()
         raw = service.events().patch(calendarId=data["calendar_id"], eventId=uid,
-                                     body=event_dict_to_google(data)).execute()
-        raw["_calendar_id"] = data["calendar_id"]
-        if source_id != data["calendar_id"]:
-            account = next(a for a in self.accounts if a["id"] == data["account_id"])
-            account["events"] = [event for event in account.get("events", [])
-                                 if not (event.get("id") == uid
-                                         and event.get("_calendar_id") == source_id)]
-        self._upsert_cached(data["account_id"], raw)
+                                     body=event_dict_to_google(data, self.timezone)).execute()
+        self._upsert_cached(data["account_id"], data["calendar_id"], raw, source_id)
         return raw
 
     def delete_event(self, uid, calendar_id=None, account_id=None):
         self._require_service(account_id).events().delete(calendarId=calendar_id, eventId=uid).execute()
-        account = next(a for a in self.accounts if a["id"] == account_id)
-        account["events"] = [e for e in account.get("events", [])
-                             if not (e.get("id") == uid and e.get("_calendar_id") == calendar_id)]
-        self._save()
+        self.database.delete_event(self.provider, account_id, calendar_id, uid)
         return True
 
     def _require_service(self, account_id):
@@ -398,10 +275,14 @@ class GoogleBackend:
         return service
 
     def _validate_event_range(self, data):
-        account = next((account for account in self.accounts
-                        if account["id"] == data["account_id"]), None)
-        calendar = next((calendar for calendar in account.get("calendars", [])
-                         if calendar["id"] == data["calendar_id"]), None) if account else None
+        account_exists = any(account["id"] == data["account_id"] for account in self.accounts)
+        calendar = None
+        if account_exists:
+            calendars = self.database.get_calendars(self.provider, data["account_id"])
+            for candidate in calendars:
+                if candidate["id"] == data["calendar_id"]:
+                    calendar = candidate
+                    break
         if calendar is None:
             raise GoogleUnavailable(_("Google calendar not found."))
         if not google_event_fits_sync_range(
@@ -411,12 +292,17 @@ class GoogleBackend:
                 % calendar.get("name", calendar["id"])
             )
 
-    def _upsert_cached(self, account_id, raw):
-        account = next(a for a in self.accounts if a["id"] == account_id)
-        account["events"] = [e for e in account.get("events", []) if not (
-            e.get("id") == raw.get("id") and e.get("_calendar_id") == raw.get("_calendar_id"))]
-        account["events"].append(raw)
-        self._save()
+    def _upsert_cached(self, account_id, calendar_id, raw, source_id=None):
+        calendar = next(calendar for calendar in self.database.get_calendars(self.provider, account_id)
+                        if calendar["id"] == calendar_id)
+        event = google_event_to_dict(raw, calendar, {"id": account_id}, True, self.timezone)
+        event["editable"] = event["event_type"] == "default"
+        self.database.save_event(self.provider, account_id, calendar_id, event, self.timezone, source_id)
+
+    def _save_credentials(self, name, credentials):
+        path = self.data_dir / name
+        # Token files are separate from calendar records and diagnostic downloads.
+        write_private_json(path, json.loads(self._get_credentials_json(credentials)))
 
     def _load_services(self):
         for account in self.accounts:
@@ -426,18 +312,18 @@ class GoogleBackend:
                     self._errors.pop(account["id"], None)
                     continue
                 scopes = account.get("scopes", SCOPES)
-                creds = Credentials.from_authorized_user_file(str(self.data_dir / account["token"]), scopes)
+                credentials = Credentials.from_authorized_user_file(str(self.data_dir / account["token"]), scopes)
                 # Older distro versions restore only the refresh token here.
                 # AuthorizedHttp refreshes lazily on the first API request.
-                if not creds.valid and not creds.refresh_token:
+                if not credentials.valid and not credentials.refresh_token:
                     raise GoogleUnavailable(_("authorization expired"))
-                self._credentials[account["id"]] = creds
+                self._credentials[account["id"]] = credentials
                 self._errors.pop(account["id"], None)
             except Exception as exc:
                 self._errors[account["id"]] = str(exc)
 
     @staticmethod
-    def _goa_accounts():
+    def _get_goa_accounts():
         try:
             import gi
             gi.require_version("Goa", "1.0")
@@ -459,7 +345,7 @@ class GoogleBackend:
 
     @classmethod
     def _find_goa_account(cls, goa_account_id):
-        for goa_object in cls._goa_accounts():
+        for goa_object in cls._get_goa_accounts():
             if goa_object.get_account().props.id == goa_account_id:
                 return goa_object
         raise GoogleUnavailable(_("The selected Online Account is unavailable"))
@@ -501,31 +387,31 @@ class GoogleBackend:
                 return items
 
     @staticmethod
-    def _build_service(creds):
-        """Build an API client whose network calls cannot hang the UI forever."""
-        http = AuthorizedHttp(creds, http=httplib2.Http(timeout=20))
+    def _build_service(credentials):
+        http = AuthorizedHttp(credentials, http=GoogleHttp())
         return build("calendar", "v3", http=http, cache_discovery=False)
 
     @staticmethod
-    def _fetch_events(service, calendar_id, start, end, stats=None,
-                      first_page_only=False):
-        local_tz = datetime.datetime.now().astimezone().tzinfo
+    def _fetch_events(service, calendar_id, start, end, timezone, stats=None,
+                      first_page_only=False, download=None):
+        local_tz = timezone
         time_min = datetime.datetime.combine(start, datetime.time.min, local_tz).isoformat()
         time_max = datetime.datetime.combine(end + datetime.timedelta(days=1), datetime.time.min, local_tz).isoformat()
         items, token = [], None
         while True:
             response = service.events().list(calendarId=calendar_id, timeMin=time_min, timeMax=time_max,
-                                             singleEvents=True, showDeleted=True,
+                                             singleEvents=True, showDeleted=False,
+                                             timeZone=getattr(local_tz, "key", None),
                                              orderBy="startTime",
                                              maxResults=EVENTS_PAGE_SIZE,
                                              pageToken=token).execute()
+            if download is not None:
+                download.add(start, end, response)
             page_items = response.get("items", [])
             if stats is not None:
                 stats["event_list_requests"] += 1
                 stats["events"] += len(page_items)
-            for event in page_items:
-                event["_calendar_id"] = calendar_id
-                items.append(event)
+            items.extend(page_items)
             token = response.get("nextPageToken")
             if token and first_page_only:
                 return items, True
@@ -533,37 +419,21 @@ class GoogleBackend:
                 return items, False
 
     @staticmethod
-    def _merge_calendar_preferences(old, remote):
-        preferences = {c["id"]: c for c in old}
-        result = [{"id": c["id"], "name": c.get("summary", c["id"]),
-                 "color": c.get("backgroundColor", "#4285f4"),
-                 "access_role": c.get("accessRole", "reader"),
-                 "primary": c.get("primary", False),
-                 "visible": preferences.get(c["id"], {}).get("visible", c.get("selected", True)),
-                 "reminders": preferences.get(c["id"], {}).get("reminders", True),
-                 "sync_range": preferences.get(c["id"], {}).get(
-                     "sync_range",
-                     "limited" if preferences.get(c["id"], {}).get("limited_range") else "normal"
-                 ),
-                 "last_sync": preferences.get(c["id"], {}).get("last_sync"),
-                 "sync_error": preferences.get(c["id"], {}).get("sync_error", "")}
-                for c in remote]
-        return result
-
-    def _save(self):
-        temp = self.accounts_file.with_suffix(".tmp")
-        temp.write_text(json.dumps(self.accounts, indent=2), encoding="utf-8")
-        temp.replace(self.accounts_file)
+    def _get_calendar_metadata(remote):
+        calendars = []
+        for calendar in remote:
+            calendars.append({
+                "id": calendar["id"],
+                "name": calendar.get("summary", calendar["id"]),
+                "color": calendar.get("backgroundColor", "#4285f4"),
+                "writable": calendar.get("accessRole") in ("writer", "owner"),
+                "primary": calendar.get("primary", False),
+                "visible": calendar.get("selected", True),
+            })
+        return calendars
 
     @staticmethod
-    def _read_json(path, default):
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return default
-
-    @staticmethod
-    def _scopes_for_credentials():
+    def _get_scopes_for_credentials():
         """Read optional OAuth scopes declared by the bundled client configuration."""
         try:
             config = GoogleBackend._read_oauth_client_config()
@@ -573,25 +443,25 @@ class GoogleBackend:
         return scopes if isinstance(scopes, list) and all(isinstance(s, str) for s in scopes) else SCOPES
 
     @staticmethod
-    def _credentials_json(creds):
+    def _get_credentials_json(credentials):
         """Serialize credentials on both current and older distro google-auth."""
-        if hasattr(creds, "to_json"):
-            return creds.to_json()
-        expiry = getattr(creds, "expiry", None)
+        if hasattr(credentials, "to_json"):
+            return credentials.to_json()
+        expiry = getattr(credentials, "expiry", None)
         payload = {
-            "token": getattr(creds, "token", None),
-            "refresh_token": getattr(creds, "refresh_token", None),
-            "token_uri": getattr(creds, "token_uri", None),
-            "client_id": getattr(creds, "client_id", None),
-            "client_secret": getattr(creds, "client_secret", None),
-            "scopes": list(getattr(creds, "scopes", None) or []),
+            "token": getattr(credentials, "token", None),
+            "refresh_token": getattr(credentials, "refresh_token", None),
+            "token_uri": getattr(credentials, "token_uri", None),
+            "client_id": getattr(credentials, "client_id", None),
+            "client_secret": getattr(credentials, "client_secret", None),
+            "scopes": list(getattr(credentials, "scopes", None) or []),
         }
         if expiry is not None:
             payload["expiry"] = expiry.isoformat().replace("+00:00", "Z")
         return json.dumps(payload)
 
 
-def google_event_to_dict(raw, calendar, account, online):
+def google_event_to_dict(raw, calendar, account, online, timezone):
     start, end = raw.get("start", {}), raw.get("end", {})
     all_day = "date" in start
     if all_day:
@@ -599,11 +469,13 @@ def google_event_to_dict(raw, calendar, account, online):
         date_end = datetime.date.fromisoformat(end.get("date", start["date"])) - datetime.timedelta(days=1)
         time_start = time_end = None
     else:
-        start_dt = _parse_datetime(start.get("dateTime"))
-        end_dt = _parse_datetime(end.get("dateTime", start.get("dateTime")))
+        start_dt = _parse_datetime(start.get("dateTime"), start.get("timeZone"))
+        end_dt = _parse_datetime(end.get("dateTime", start.get("dateTime")), end.get("timeZone"))
+        start_dt = start_dt.astimezone(timezone)
+        end_dt = end_dt.astimezone(timezone)
         date_start, date_end = start_dt.date(), end_dt.date()
         time_start, time_end = start_dt.time().replace(tzinfo=None), end_dt.time().replace(tzinfo=None)
-    writable = calendar.get("access_role") in ("writer", "owner")
+    writable = calendar.get("writable", calendar.get("access_role") in ("writer", "owner"))
     event_type = raw.get("eventType", "default")
     return {"uid": raw.get("id", ""), "summary": raw.get("summary") or _("Untitled"),
             "location": raw.get("location", ""), "description": raw.get("description", ""),
@@ -616,7 +488,9 @@ def google_event_to_dict(raw, calendar, account, online):
             "sync_range": calendar.get("sync_range", "normal"),
             "event_type": event_type,
             "editable": bool(online and writable and event_type == "default"),
-            "cached": not online}
+            "cached": not online,
+            "_start": date_start if all_day else start_dt,
+            "_end": date_end if all_day else end_dt}
 
 
 def google_event_fits_sync_range(calendar, date_start, date_end, today=None):
@@ -630,43 +504,29 @@ def google_event_fits_sync_range(calendar, date_start, date_end, today=None):
     return date_start >= synced_start and date_end <= synced_end
 
 
-def event_dict_to_google(data):
+def event_dict_to_google(data, timezone):
     body = {"summary": data.get("summary", ""), "location": data.get("location", ""),
             "description": data.get("description", "")}
     if data.get("all_day", True):
         body["start"] = {"date": data["date_start"].isoformat()}
         body["end"] = {"date": (data.get("date_end", data["date_start"]) + datetime.timedelta(days=1)).isoformat()}
     else:
-        tz = datetime.datetime.now().astimezone().tzinfo
-        start = datetime.datetime.combine(data["date_start"], data["time_start"], tz)
-        end = datetime.datetime.combine(data.get("date_end", data["date_start"]), data["time_end"], tz)
+        start = datetime.datetime.combine(data["date_start"], data["time_start"], timezone)
+        end = datetime.datetime.combine(data.get("date_end", data["date_start"]), data["time_end"], timezone)
         body["start"] = {"dateTime": start.isoformat()}
         body["end"] = {"dateTime": end.isoformat()}
+        timezone_name = getattr(timezone, "key", None)
+        if timezone_name:
+            body["start"]["timeZone"] = timezone_name
+            body["end"]["timeZone"] = timezone_name
     return body
 
 
-def _parse_datetime(value):
-    return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
-
-
-def _raw_start_date(raw):
-    start = raw.get("start", {})
-    if "date" in start:
-        return datetime.date.fromisoformat(start["date"])
-    if "dateTime" in start:
-        return _parse_datetime(start["dateTime"]).date()
-    return None
-
-
-def _raw_end_date(raw):
-    end = raw.get("end", {})
-    if "date" in end:
-        return datetime.date.fromisoformat(end["date"]) - datetime.timedelta(days=1)
-    if "dateTime" in end:
-        return _parse_datetime(end["dateTime"]).date()
-    return _raw_start_date(raw)
-
-
-def _raw_overlaps(raw, start, end):
-    raw_start, raw_end = _raw_start_date(raw), _raw_end_date(raw)
-    return raw_start is not None and raw_end is not None and raw_end >= start and raw_start <= end
+def _parse_datetime(value, time_zone=None):
+    parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None and time_zone:
+        try:
+            return parsed.replace(tzinfo=ZoneInfo(time_zone))
+        except ZoneInfoNotFoundError:
+            pass
+    return parsed

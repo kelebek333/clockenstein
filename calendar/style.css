@@ -21,6 +21,17 @@
     font-weight: bold;
     padding: 2px 4px;
 }
+.clockenstein-month-label {
+    font-size: 0.78em;
+    font-weight: bold;
+    color: alpha(@theme_selected_bg_color, 0.85);
+    padding: 2px 6px;
+}
+.clockenstein-month-start {
+    background-image: linear-gradient(to bottom right,
+        alpha(@theme_selected_bg_color, 0.16),
+        alpha(@theme_selected_bg_color, 0) 30%);
+}
 .clockenstein-today { background-color: alpha(@theme_selected_bg_color, 0.07); }
 .clockenstein-selected-day { background-color: alpha(@theme_selected_bg_color, 0.13); }
 .clockenstein-today .clockenstein-day-number { color: @theme_selected_bg_color; }
@@ -93,12 +104,15 @@
     color: @insensitive_fg_color; font-size: 0.65em; font-weight: bold;
     padding: 4px 0 2px;
 }
-.mini-calendar-week { border-radius: 12px; }
+.mini-calendar-week { border-radius: 9999px; }
 .mini-calendar-week.selected { background-color: alpha(@theme_fg_color, 0.10); }
-.mini-calendar-week-number { color: @insensitive_fg_color; font-size: 0.65em; }
+.mini-calendar-week-number {
+    color: @insensitive_fg_color; font-size: 0.65em;
+    padding-bottom: 5px;
+}
 .mini-calendar-day {
     background: none; border: none; box-shadow: none;
-    border-radius: 12px; min-width: 23px; min-height: 27px; padding: 1px 0;
+    border-radius: 9999px; min-width: 27px; min-height: 27px; padding: 0;
     font-size: 0.82em;
 }
 .mini-calendar-day:hover { background-color: alpha(@theme_fg_color, 0.10); }
@@ -128,6 +142,25 @@
     color: @insensitive_fg_color;
     margin-top: 4px;
     margin-left: 6px;
+}
+.clockenstein-calendar-heading {
+    font-size: 0.78em;
+    padding: 2px 0 5px;
+}
+.clockenstein-calendar-account {
+    font-weight: bold;
+    padding: 8px 0 2px;
+}
+.clockenstein-calendar-account-status {
+    color: @insensitive_fg_color;
+    font-size: 0.85em;
+    padding-top: 6px;
+}
+.clockenstein-calendar-group {
+    color: @insensitive_fg_color;
+    font-size: 0.78em;
+    font-weight: bold;
+    padding: 5px 0 1px 16px;
 }
 .clockenstein-status {
     font-size: 0.78em;
