@@ -111,11 +111,6 @@ We sync it every 15 minutes for a range of 2 years.
 When we navigate outside the range, in the case of Google no events are shown, in the case of
 CalDav we sync extra ranges from the remote.
 
-## TODO
-
-- Implement stopwatch/timers
-- Implement timezones/world-clocks
-
 ## Dependencies
 
 ### Runtime Dependencies
